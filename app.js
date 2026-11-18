@@ -1,4 +1,4 @@
-// LinkChat — plain JavaScript, no build step.
+// LinkChat — Apple Design System & Instant Messaging.
 // Supabase handles: anonymous sign-in, message storage, realtime, presence.
 (function () {
   'use strict';
@@ -14,8 +14,9 @@
   var ROOM_NAME_KEY = 'linkchat.roomName';
   var ROOM_KEY_PASS = 'linkchat.roomKey';
   var THEME_KEY = 'linkchat.theme';
+  var NOTIF_KEY = 'linkchat.notifications';
   var BUCKET = 'chat-images';
-  var PHOTO_MAX_PX = 1600;    // photos are shrunk to this size before upload
+  var PHOTO_MAX_PX = 1600;
   var COLUMNS = 'id, room_id, user_id, display_name, content, image_path, created_at';
 
   // ---------- DOM ----------
@@ -32,22 +33,28 @@
     newRoomName: $('new-room-name'), newRoomKey: $('new-room-key'),
     createRoomError: $('create-room-error'), createRoomBtn: $('create-room-btn'),
     roomBackBtn: $('room-back-btn'),
-    // Chat
+    // Dynamic Island In-App Banner
+    banner: $('in-app-banner'), bannerPill: $('banner-pill-btn'),
+    bannerAvatar: $('banner-avatar'), bannerSender: $('banner-sender'), bannerText: $('banner-text'),
+    // Chat Header & Controls
     chat: $('chat'), setup: $('setup'), roomName: $('room-name'),
     online: $('online'), onlineCount: $('online-count'), onlineList: $('online-list'),
     conn: $('conn'), copyBtn: $('copy-btn'), roomsBtn: $('rooms-btn'),
-    themeBtn: $('theme-btn'), leaveBtn: $('leave-btn'),
+    themeBtn: $('theme-btn'), themeIcon: $('theme-icon'),
+    notifBtn: $('notif-btn'), notifDot: $('notif-status-dot'),
+    leaveBtn: $('leave-btn'),
+    // Messages
     messages: $('messages'), olderBtn: $('older-btn'), status: $('status'), feed: $('feed'),
     composer: $('composer'), input: $('msg-input'), sendBtn: $('send-btn'), counter: $('counter'),
     attachBtn: $('attach-btn'), fileInput: $('file-input'),
     toast: $('toast'),
   };
 
-  // ---------- Small helpers ----------
+  // ---------- Storage Helpers ----------
   function store(key, value) {
     try {
       if (value === null) localStorage.removeItem(key); else localStorage.setItem(key, value);
-    } catch (e) { /* private mode: ignore */ }
+    } catch (e) {}
   }
   function load(key) { try { return localStorage.getItem(key); } catch (e) { return null; } }
 
@@ -62,7 +69,7 @@
   function el(tag, cls, text) {
     var n = document.createElement(tag);
     if (cls) n.className = cls;
-    if (text != null) n.textContent = text; // always textContent: never HTML
+    if (text != null) n.textContent = text;
     return n;
   }
 
@@ -71,13 +78,13 @@
     ui.toast.textContent = msg;
     ui.toast.classList.add('show');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { ui.toast.classList.remove('show'); }, 2500);
+    toastTimer = setTimeout(function () { ui.toast.classList.remove('show'); }, 2600);
   }
 
   function nameColor(id) {
     var h = 0;
     for (var i = 0; i < id.length; i++) h = (h * 31 + id.charCodeAt(i)) % 360;
-    return 'hsl(' + h + ' 55% var(--name-l))'; // lightness depends on theme
+    return 'hsl(' + h + ' 60% var(--name-l))';
   }
 
   function sameDay(a, b) {
@@ -88,7 +95,7 @@
     yest.setDate(today.getDate() - 1);
     if (sameDay(d, today)) return 'Today';
     if (sameDay(d, yest)) return 'Yesterday';
-    return d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short', year: 'numeric' });
+    return d.toLocaleDateString(undefined, { weekday: 'short', day: 'numeric', month: 'short' });
   }
   function timeLabel(ts) {
     return new Date(ts).toLocaleTimeString(undefined, { hour: 'numeric', minute: '2-digit' });
@@ -96,26 +103,227 @@
 
   function friendlyError(err) {
     var msg = (err && err.message) || String(err || 'Unknown error');
-    if (/anonymous sign-ins are disabled/i.test(msg)) return 'Anonymous sign-in is turned off in Supabase (see README, Part B).';
-    if (/failed to fetch|network/i.test(msg)) return 'Network problem. Check your connection and try again.';
-    if (/bucket not found/i.test(msg)) return 'Photo storage is missing. Run the SQL setup again (README, Part B).';
-    if (/row-level security|permission denied/i.test(msg)) return 'The database refused this. Did you run the SQL setup?';
+    if (/anonymous sign-ins are disabled/i.test(msg)) return 'Anonymous sign-in is disabled in Supabase.';
+    if (/failed to fetch|network/i.test(msg)) return 'Network connection issue. Please check your signal.';
+    if (/bucket not found/i.test(msg)) return 'Photo storage bucket is missing in Supabase.';
+    if (/row-level security|permission denied/i.test(msg)) return 'Access restricted by database policy.';
     return msg;
   }
 
-  // ---------- Theme ----------
+  // ---------- Apple Audio & Haptics Synthesizer (§13) ----------
+  var audioCtx = null;
+  function getAudioContext() {
+    if (!audioCtx) {
+      try {
+        var AudioContextClass = window.AudioContext || window.webkitAudioContext;
+        if (AudioContextClass) audioCtx = new AudioContextClass();
+      } catch (e) {}
+    }
+    if (audioCtx && audioCtx.state === 'suspended') {
+      audioCtx.resume().catch(function () {});
+    }
+    return audioCtx;
+  }
+
+  // Harmonic chime on incoming message
+  function playReceiveSound() {
+    try {
+      var ctx = getAudioContext();
+      if (!ctx) return;
+      var now = ctx.currentTime;
+
+      // Dual harmonic sine waves for crisp bell chime
+      var osc1 = ctx.createOscillator();
+      var osc2 = ctx.createOscillator();
+      var gain = ctx.createGain();
+
+      osc1.type = 'sine';
+      osc2.type = 'sine';
+      osc1.frequency.setValueAtTime(880, now);        // A5
+      osc1.frequency.exponentialRampToValueAtTime(1760, now + 0.12);
+      osc2.frequency.setValueAtTime(1320, now);       // E6
+      osc2.frequency.exponentialRampToValueAtTime(2640, now + 0.12);
+
+      gain.gain.setValueAtTime(0.08, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.35);
+
+      osc1.connect(gain);
+      osc2.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc1.start(now);
+      osc2.start(now);
+      osc1.stop(now + 0.36);
+      osc2.stop(now + 0.36);
+
+      // Subtle haptic tick on mobile devices (§13)
+      if (window.navigator && window.navigator.vibrate) {
+        window.navigator.vibrate([12]);
+      }
+    } catch (e) {}
+  }
+
+  // Gentle pop on message sent
+  function playSendSound() {
+    try {
+      var ctx = getAudioContext();
+      if (!ctx) return;
+      var now = ctx.currentTime;
+      var osc = ctx.createOscillator();
+      var gain = ctx.createGain();
+
+      osc.type = 'sine';
+      osc.frequency.setValueAtTime(320, now);
+      osc.frequency.exponentialRampToValueAtTime(740, now + 0.08);
+
+      gain.gain.setValueAtTime(0.09, now);
+      gain.gain.exponentialRampToValueAtTime(0.001, now + 0.14);
+
+      osc.connect(gain);
+      gain.connect(ctx.destination);
+
+      osc.start(now);
+      osc.stop(now + 0.15);
+    } catch (e) {}
+  }
+
+  // ---------- Apple Theme Management ----------
   function currentTheme() {
     var t = document.documentElement.dataset.theme;
     if (t) return t;
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
+
+  function updateThemeIcon(t) {
+    if (!ui.themeIcon) return;
+    if (t === 'dark') {
+      // Show sun icon when in dark mode
+      ui.themeIcon.innerHTML = '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>';
+    } else {
+      // Show moon icon when in light mode
+      ui.themeIcon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>';
+    }
+  }
+
   ui.themeBtn.addEventListener('click', function () {
     var next = currentTheme() === 'dark' ? 'light' : 'dark';
     document.documentElement.dataset.theme = next;
     store(THEME_KEY, next);
+    updateThemeIcon(next);
+  });
+  updateThemeIcon(currentTheme());
+
+  // ---------- Message Notifications System ----------
+  var unreadCount = 0;
+
+  function updateNotifButtonUI() {
+    if (!ui.notifDot) return;
+    if (!('Notification' in window)) {
+      ui.notifBtn.hidden = true;
+      return;
+    }
+    if (Notification.permission === 'granted') {
+      ui.notifDot.className = 'status-dot active';
+      ui.notifBtn.title = 'Notifications enabled';
+    } else if (Notification.permission === 'denied') {
+      ui.notifDot.className = 'status-dot muted';
+      ui.notifBtn.title = 'Notifications blocked in browser settings';
+    } else {
+      ui.notifDot.className = 'status-dot';
+      ui.notifBtn.title = 'Click to enable notifications';
+    }
+  }
+
+  async function requestNotificationPermission() {
+    if (!('Notification' in window)) {
+      toast('Notifications are not supported in this browser.');
+      return;
+    }
+    if (Notification.permission === 'granted') {
+      toast('Notifications are already active.');
+      return;
+    }
+    if (Notification.permission === 'denied') {
+      toast('Notifications blocked. Enable in site permissions.');
+      return;
+    }
+    try {
+      var perm = await Notification.requestPermission();
+      updateNotifButtonUI();
+      if (perm === 'granted') {
+        toast('Notifications enabled! 🎉');
+        try {
+          new Notification('LinkChat', { body: 'Notifications are now active!', silent: true });
+        } catch (e) {}
+      }
+    } catch (e) {}
+  }
+
+  if (ui.notifBtn) {
+    ui.notifBtn.addEventListener('click', requestNotificationPermission);
+    updateNotifButtonUI();
+  }
+
+  // In-App Dynamic Island Notification Banner
+  var bannerTimer = null;
+  function showInAppBanner(displayName, text) {
+    if (!ui.banner) return;
+    ui.bannerSender.textContent = displayName;
+    ui.bannerText.textContent = text || 'Sent a photo';
+    ui.bannerAvatar.textContent = (displayName && displayName[0] ? displayName[0].toUpperCase() : '💬');
+    ui.banner.hidden = false;
+
+    clearTimeout(bannerTimer);
+    bannerTimer = setTimeout(function () {
+      ui.banner.hidden = true;
+    }, 4500);
+  }
+
+  if (ui.bannerPill) {
+    ui.bannerPill.addEventListener('click', function () {
+      ui.banner.hidden = true;
+      scrollToBottom();
+    });
+  }
+
+  // Trigger notification when someone else sends a message
+  function notifyIncomingMessage(displayName, content) {
+    // 1. Play synthesized Apple chime
+    playReceiveSound();
+
+    // 2. If tab is backgrounded / hidden, fire Web Notification
+    if (document.hidden) {
+      unreadCount++;
+      document.title = '(' + unreadCount + ') LinkChat';
+
+      if ('Notification' in window && Notification.permission === 'granted') {
+        try {
+          var n = new Notification(displayName + ' (' + state.roomDisplayName + ')', {
+            body: content || 'Sent an image',
+            icon: 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"%3E%3Crect width="24" height="24" rx="7" fill="%23007aff"/%3E%3Cpath d="M7 8.5h10M7 12.5h6" stroke="white" stroke-width="2" stroke-linecap="round"/%3E%3C/svg%3E',
+            tag: 'linkchat-' + state.room,
+          });
+          n.onclick = function () {
+            window.focus();
+            n.close();
+          };
+        } catch (e) {}
+      }
+    } else {
+      // 3. Tab is visible: if scrolled up, show Dynamic Island banner
+      if (!nearBottom()) {
+        showInAppBanner(displayName, content);
+      }
+    }
+  }
+
+  // Clear unread indicator when user returns to tab
+  window.addEventListener('focus', function () {
+    unreadCount = 0;
+    document.title = 'LinkChat';
   });
 
-  // ---------- Supabase ----------
+  // ---------- Supabase Client ----------
   function isConfigured() {
     return cfg.SUPABASE_URL && cfg.SUPABASE_PUBLISHABLE_KEY &&
       !/YOUR_/.test(cfg.SUPABASE_URL) && !/YOUR_/.test(cfg.SUPABASE_PUBLISHABLE_KEY);
@@ -130,12 +338,12 @@
     room: DEFAULT_ROOM,
     roomDisplayName: DEFAULT_ROOM_NAME,
     roomKey: '',
-    msgs: new Map(),     // id -> message
-    oldestRaw: null,     // created_at string of the oldest loaded message
+    msgs: new Map(),
+    oldestRaw: null,
     hasMore: false,
     loadingOlder: false,
-    ready: false,        // history loaded; realtime events can be applied directly
-    buffer: [],          // realtime rows that arrived while history was loading
+    ready: false,
+    buffer: [],
     channel: null,
     everSubscribed: false,
     seq: 0,
@@ -166,7 +374,7 @@
     return Array.from(state.msgs.values()).sort(function (a, b) {
       var ap = a.status !== 'sent', bp = b.status !== 'sent';
       if (ap && bp) return a.seq - b.seq;
-      if (ap) return 1;            // unsent messages go last
+      if (ap) return 1;
       if (bp) return -1;
       if (a.ts !== b.ts) return a.ts - b.ts;
       return a.id < b.id ? -1 : 1;
@@ -210,7 +418,7 @@
         prev = null;
       }
       var cont = prev && prev.user_id === m.user_id &&
-        (m.status !== 'sent' || prev.status !== 'sent' || m.ts - prev.ts < 5 * 60 * 1000);
+        (m.status !== 'sent' || prev.status !== 'sent' || m.ts - prev.ts < 4 * 60 * 1000);
       frag.append(bubble(m, cont));
       prev = m;
     });
@@ -218,8 +426,8 @@
     ui.feed.replaceChildren(frag);
     ui.olderBtn.hidden = !state.hasMore;
     ui.olderBtn.disabled = state.loadingOlder;
-    ui.olderBtn.textContent = state.loadingOlder ? 'Loading…' : 'Load earlier messages';
-    if (state.ready && list.length === 0) ui.status.textContent = 'No messages yet. Say hello!';
+    ui.olderBtn.textContent = state.loadingOlder ? 'Loading…' : 'Load Earlier Messages';
+    if (state.ready && list.length === 0) ui.status.textContent = 'No messages yet. Send a message to start.';
     else if (state.ready) ui.status.textContent = '';
 
     if (mode === 'bottom' || (mode !== 'prepend' && wasNear)) { scrollToBottom(); stuckToBottom = true; }
@@ -284,7 +492,7 @@
     return row;
   }
 
-  // ---------- Loading messages ----------
+  // ---------- Message Queries ----------
   function baseQuery() {
     return sb.from('messages').select(COLUMNS).eq('room_id', state.room);
   }
@@ -317,7 +525,6 @@
   }
   ui.olderBtn.addEventListener('click', loadOlder);
 
-  // After reconnect or visibility change, fetch anything missed
   async function catchUp() {
     var since = newestRaw();
     if (!since || !state.ready) return;
@@ -328,14 +535,20 @@
         res.data.forEach(upsert);
         render('auto');
       }
-    } catch (e) { /* silent catch-up retry */ }
+    } catch (e) {}
   }
 
   // ---------- Realtime + presence ----------
   function onRealtimeRow(row) {
     if (!state.ready) { state.buffer.push(row); return; }
+    var isNew = !state.msgs.has(row.id);
     upsert(row);
     render('auto');
+
+    // If new incoming message from someone else, trigger notification
+    if (isNew && state.user && row.user_id !== state.user.id) {
+      notifyIncomingMessage(row.display_name, row.content);
+    }
   }
 
   function updatePresence() {
@@ -347,7 +560,7 @@
       return metas.length && metas[0].name ? metas[0].name : 'Someone';
     }).sort(function (a, b) { return a.localeCompare(b); });
     ui.onlineCount.textContent = keys.length + ' online';
-    ui.onlineList.textContent = 'Online now: ' + names.join(', ');
+    ui.onlineList.textContent = 'Active now: ' + names.join(', ');
     ui.online.hidden = keys.length === 0;
   }
 
@@ -389,7 +602,7 @@
       function (payload) { onRealtimeRow(payload.new); })
       .on('presence', { event: 'sync' }, updatePresence)
       .subscribe(function (status, err) {
-        if (ch !== state.channel) return; // channel changed
+        if (ch !== state.channel) return;
         if (status === 'SUBSCRIBED') {
           setConnected(true);
           try {
@@ -400,8 +613,6 @@
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
           console.warn('Realtime channel:', status, err);
           setConnected(false);
-          // Let Supabase Realtime retry reconnecting automatically.
-          // Wake up the socket transport if it went idle:
           if (!isWsConnected()) {
             try { sb.realtime.connect(); } catch (e) {}
           }
@@ -411,7 +622,7 @@
       });
   }
 
-  // Wake socket and catch up on tab focus / mobile resume
+  // Wake socket and catch up on visibility change & online (§1)
   document.addEventListener('visibilitychange', function () {
     if (document.visibilityState === 'visible' && state.ready) {
       if (!isWsConnected()) {
@@ -421,7 +632,6 @@
     }
   });
 
-  // Wake socket when device reconnects to Wi-Fi / mobile data
   window.addEventListener('online', function () {
     if (state.ready) {
       if (!isWsConnected()) {
@@ -431,7 +641,7 @@
     }
   });
 
-  // ---------- Sending ----------
+  // ---------- Composer & Sending ----------
   function updateComposer() {
     var len = ui.input.value.length;
     ui.sendBtn.disabled = ui.input.value.trim().length === 0 || len > MAX_LEN;
@@ -439,7 +649,7 @@
     ui.counter.textContent = len + ' / ' + MAX_LEN;
     ui.counter.classList.toggle('over', len > MAX_LEN);
     ui.input.style.height = 'auto';
-    ui.input.style.height = Math.min(ui.input.scrollHeight + 2, 140) + 'px';
+    ui.input.style.height = Math.min(ui.input.scrollHeight + 2, 130) + 'px';
   }
   ui.input.addEventListener('input', updateComposer);
 
@@ -462,6 +672,7 @@
     ui.input.value = '';
     updateComposer();
     render('bottom');
+    playSendSound(); // Apple audio feedback (§13)
     insert(m);
   });
 
@@ -499,7 +710,7 @@
     var file = ui.fileInput.files && ui.fileInput.files[0];
     ui.fileInput.value = '';
     if (!file || !state.user) return;
-    if (!/^image\//.test(file.type)) { toast('Please choose an image.'); return; }
+    if (!/^image\//.test(file.type)) { toast('Please choose an image file.'); return; }
 
     var blob;
     try { blob = await shrinkPhoto(file); } catch (e) { toast(e.message); return; }
@@ -513,6 +724,7 @@
     };
     state.msgs.set(id, m);
     render('bottom');
+    playSendSound();
     insert(m);
   });
 
@@ -552,7 +764,7 @@
     render('auto');
   }
 
-  // ---------- Copy link (smart share with key) ----------
+  // ---------- Smart Link Sharing (with key) ----------
   ui.copyBtn.addEventListener('click', async function () {
     var url = location.origin + location.pathname;
     if (state.room !== 'general') {
@@ -660,7 +872,7 @@
           ui.createRoomBtn.textContent = 'Create Room';
           return;
         }
-        toast('Room created! Share the link or key with your friends.');
+        toast('Room created! Share link with your team.');
         state.room = roomId;
         state.roomDisplayName = roomName;
         state.roomKey = key;
@@ -684,7 +896,7 @@
     });
   }
 
-  // ---------- Screens ----------
+  // ---------- Screen Transitions ----------
   function show(screen) {
     ui.join.hidden = screen !== 'join';
     if (ui.roomPicker) ui.roomPicker.hidden = screen !== 'rooms';
@@ -696,7 +908,7 @@
     ui.nameInput.value = prefill || '';
     ui.joinError.textContent = '';
     ui.joinBtn.disabled = false;
-    ui.joinBtn.textContent = 'Join Chat';
+    ui.joinBtn.textContent = 'Continue';
     show('join');
     ui.nameInput.focus();
   }
@@ -746,6 +958,7 @@
     ui.status.textContent = 'Loading messages…';
     setConnected(true);
     updateComposer();
+    updateNotifButtonUI();
 
     subscribe();
     try {
@@ -762,7 +975,6 @@
     ui.input.focus();
   }
 
-  // Auto-join helper for shared links with ?room=x&key=y
   async function tryAutoJoinFromUrl() {
     var params = new URLSearchParams(window.location.search);
     var urlRoom = (params.get('room') || '').trim().toLowerCase();
@@ -784,7 +996,6 @@
       }
     }
 
-    // Has room ID in URL but no key provided
     showRoomPicker();
     return false;
   }
@@ -798,8 +1009,11 @@
     }
     ui.joinError.textContent = '';
     ui.joinBtn.disabled = true;
-    ui.joinBtn.textContent = 'Joining…';
+    ui.joinBtn.textContent = 'Connecting…';
     try {
+      // Warm up audio context on user gesture (§13)
+      getAudioContext();
+
       var got = await sb.auth.getSession();
       var session = got.data && got.data.session;
       if (!session) {
@@ -815,11 +1029,10 @@
       var urlRoom = params.get('room');
 
       if (urlRoom) {
-        // Direct link provided in URL: try to auto-join
         var joined = await tryAutoJoinFromUrl();
         if (!joined) {
           ui.joinBtn.disabled = false;
-          ui.joinBtn.textContent = 'Join Chat';
+          ui.joinBtn.textContent = 'Continue';
         }
       } else if (PRIVATE_ROOMS) {
         showRoomPicker();
@@ -843,7 +1056,7 @@
     showJoin('');
   });
 
-  // ---------- Start ----------
+  // ---------- Boot ----------
   async function boot() {
     if (!isConfigured() || !window.supabase) { show('setup'); return; }
     sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_PUBLISHABLE_KEY, {
@@ -868,7 +1081,6 @@
       var urlRoom = params.get('room');
 
       if (urlRoom) {
-        // Direct link provided in URL
         await tryAutoJoinFromUrl();
       } else if (savedRoom) {
         state.room = savedRoom;
