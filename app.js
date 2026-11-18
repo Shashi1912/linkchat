@@ -895,6 +895,15 @@
     ui.tabCreate.addEventListener('click', function () { setRoomTab('create'); });
   }
 
+  var generalTile = $('general-tile');
+  if (generalTile) {
+    generalTile.addEventListener('click', function (e) {
+      if (e.target.id !== 'general-btn' && !e.target.closest('#general-btn')) {
+        joinGeneral();
+      }
+    });
+  }
+
   function joinGeneral() {
     state.room = 'general';
     state.roomDisplayName = DEFAULT_ROOM_NAME;

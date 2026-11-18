@@ -6,7 +6,7 @@
   <title>LinkChat</title>
   <meta name="description" content="Instant, secure real-time messaging inspired by Apple design." />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='7' fill='%23007aff'/%3E%3Cpath d='M7 8.5h10M7 12.5h6' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E" />
-  <link rel="stylesheet" href="style.css?v=2.1" />
+  <link rel="stylesheet" href="style.css?v=2.2" />
   <script>
     // Apply saved theme before paint (prevents dark/light flash)
     try {
@@ -41,86 +41,142 @@
     </form>
   </main>
 
-  <!-- Side-by-Side Room Picker Screen -->
+  <!-- Side-by-Side Room Picker Screen with Apple Tiles -->
   <main id="room-picker" class="join" hidden>
     <div class="join-card room-picker-wide">
       <div class="room-picker-header">
-        <h2>Choose a Room</h2>
-        <p class="subtitle">Join an existing room or create your own private room side-by-side.</p>
-
-        <!-- Segmented Control Switcher for Mobile Screens -->
-        <div class="apple-segmented" id="room-segmented">
-          <button type="button" class="segment-tab active" id="tab-join">Join Room</button>
-          <button type="button" class="segment-tab" id="tab-create">Create Room</button>
+        <div class="logo-apple mini" aria-hidden="true">
+          <svg viewBox="0 0 24 24" width="26" height="26" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22z" fill="currentColor" fill-opacity="0.12"/>
+            <path d="M7.9 20A9 9 0 1 0 4 16.1L2 22z"/>
+            <path d="M8 10h8M8 14h5"/>
+          </svg>
         </div>
+        <h2>Choose a Room</h2>
+        <p class="subtitle">Join public community chat or choose a private room option.</p>
       </div>
 
-      <!-- Side-by-Side Dual Column Grid -->
+      <!-- Tile 1: General Community Chat Hero Tile (1-Tap Instant Join) -->
+      <div class="apple-tile-hero" id="general-tile" role="button" tabindex="0" title="Tap to enter General Chat">
+        <div class="tile-hero-icon">
+          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+          </svg>
+        </div>
+        <div class="tile-hero-text">
+          <div class="tile-hero-title-row">
+            <strong>General Chat</strong>
+            <span class="col-pill">PUBLIC</span>
+          </div>
+          <small>Open community room • Instant 1-tap entry</small>
+        </div>
+        <button id="general-btn" type="button" class="btn-tile-action" aria-label="Enter General Chat">
+          <span>Enter</span>
+          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="9 18 15 12 9 6"></polyline>
+          </svg>
+        </button>
+      </div>
+
+      <div class="tiles-section-divider">
+        <span>OR PRIVATE ROOM TILES</span>
+      </div>
+
+      <!-- Side-by-side Mobile Action Tiles (Switches between Join / Create on mobile) -->
+      <div class="apple-tiles-row" id="room-segmented">
+        <button type="button" class="apple-tile-toggle active" id="tab-join">
+          <div class="tile-toggle-icon blue">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 2l-2 2m-1-1l-3 3m1 1l-2 2m-2-2l-4 4a5.5 5.5 0 1 1-7.78-7.78 5.5 5.5 0 0 1 7.78 0L17 5z"/>
+            </svg>
+          </div>
+          <div class="tile-toggle-info">
+            <strong>Join Room</strong>
+            <small>Enter with key</small>
+          </div>
+          <div class="tile-check-indicator" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+          </div>
+        </button>
+
+        <button type="button" class="apple-tile-toggle" id="tab-create">
+          <div class="tile-toggle-icon green">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+          </div>
+          <div class="tile-toggle-info">
+            <strong>Create Room</strong>
+            <small>New private room</small>
+          </div>
+          <div class="tile-check-indicator" aria-hidden="true">
+            <svg viewBox="0 0 24 24" width="12" height="12" fill="none" stroke="currentColor" stroke-width="3" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="20 6 9 17 4 12"></polyline>
+            </svg>
+          </div>
+        </button>
+      </div>
+
+      <!-- Side-by-Side Dual Tile Cards Grid -->
       <div class="room-grid-layout">
-        <!-- Column 1: Join Existing Room -->
-        <div class="room-grid-col" id="col-join">
-          <div class="col-header">
-            <span class="col-pill">PUBLIC & PRIVATE</span>
-            <h3>Join Room</h3>
+        <!-- Tile 1: Join Existing Private Room -->
+        <div class="room-grid-col room-tile-box" id="col-join">
+          <div class="tile-box-header">
+            <div class="tile-toggle-icon blue sm">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 2l-2 2m-1-1l-3 3m1 1l-2 2m-2-2l-4 4a5.5 5.5 0 1 1-7.78-7.78 5.5 5.5 0 0 1 7.78 0L17 5z"/>
+              </svg>
+            </div>
+            <div>
+              <h3>Join Room</h3>
+              <p class="tile-desc">Enter existing room with access key.</p>
+            </div>
           </div>
 
-          <!-- General Chat instant button -->
-          <button id="general-btn" type="button" class="room-btn-apple">
-            <div class="room-badge-icon general">
-              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-              </svg>
-            </div>
-            <div class="room-btn-text">
-              <strong>General Chat</strong>
-              <small>Open public community room</small>
-            </div>
-            <div class="chevron-arrow">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="9 18 15 12 9 6"></polyline>
-              </svg>
-            </div>
-          </button>
-
-          <div class="apple-divider"><span>OR PRIVATE ROOM</span></div>
-
-          <!-- Join private room form -->
           <form id="join-room-form" class="room-subform" novalidate>
             <div class="input-group">
               <label for="room-id-input">Room ID</label>
-              <input id="room-id-input" type="text" maxlength="40" placeholder="e.g. design-team" />
+              <input id="room-id-input" type="text" maxlength="40" placeholder="e.g. design-team" autocomplete="off" />
             </div>
             <div class="input-group" style="margin-top: 10px;">
               <label for="room-key-input">Access Key</label>
-              <input id="room-key-input" type="password" maxlength="64" placeholder="Enter secret key" />
+              <input id="room-key-input" type="password" maxlength="64" placeholder="Enter secret key" autocomplete="off" />
             </div>
             <p id="room-join-error" class="form-error" role="alert"></p>
             <button id="room-join-btn" type="submit" class="btn-apple-secondary">Join Private Room</button>
           </form>
         </div>
 
-        <!-- Vertical Divider (Desktop) -->
-        <div class="col-separator" aria-hidden="true"></div>
-
-        <!-- Column 2: Create a Room -->
-        <div class="room-grid-col" id="col-create">
-          <div class="col-header">
-            <span class="col-pill new">NEW</span>
-            <h3>Create Room</h3>
+        <!-- Tile 2: Create a Room -->
+        <div class="room-grid-col room-tile-box" id="col-create" data-tab-hidden="true">
+          <div class="tile-box-header">
+            <div class="tile-toggle-icon green sm">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <line x1="12" y1="5" x2="12" y2="19"></line>
+                <line x1="5" y1="12" x2="19" y2="12"></line>
+              </svg>
+            </div>
+            <div>
+              <h3>Create Room</h3>
+              <p class="tile-desc">Create your own private room with access key.</p>
+            </div>
           </div>
 
           <form id="create-room-form" class="room-subform" novalidate>
             <div class="input-group">
               <label for="new-room-id">Room ID</label>
-              <input id="new-room-id" type="text" maxlength="40" placeholder="e.g. team-mars" />
+              <input id="new-room-id" type="text" maxlength="40" placeholder="e.g. team-mars" autocomplete="off" />
             </div>
             <div class="input-group" style="margin-top: 10px;">
               <label for="new-room-name">Display Name</label>
-              <input id="new-room-name" type="text" maxlength="60" placeholder="e.g. Mars Project Team" />
+              <input id="new-room-name" type="text" maxlength="60" placeholder="e.g. Mars Project Team" autocomplete="off" />
             </div>
             <div class="input-group" style="margin-top: 10px;">
               <label for="new-room-key">Access Key</label>
-              <input id="new-room-key" type="text" maxlength="64" placeholder="Key required to enter" />
+              <input id="new-room-key" type="text" maxlength="64" placeholder="Key required to enter" autocomplete="off" />
             </div>
             <p id="create-room-error" class="form-error" role="alert"></p>
             <button id="create-room-btn" type="submit" class="btn-apple-primary">Create & Join</button>
@@ -304,6 +360,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
   <script src="config.js"></script>
-  <script src="app.js?v=2.1"></script>
+  <script src="app.js?v=2.2"></script>
 </body>
 </html>
