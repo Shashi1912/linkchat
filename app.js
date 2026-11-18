@@ -1052,19 +1052,42 @@
     });
   }
 
+  function setBtnState(btn, loading, defaultText, loadingText) {
+    if (!btn) return;
+    btn.disabled = Boolean(loading);
+    var span = btn.querySelector('span');
+    if (span) {
+      span.textContent = loading ? (loadingText || 'Loading…') : defaultText;
+    } else {
+      btn.textContent = loading ? (loadingText || 'Loading…') : defaultText;
+    }
+  }
+
   // Mobile Segmented Switcher for Side-by-Side Dual Column
   function setRoomTab(tab) {
     if (!ui.colJoin || !ui.colCreate) return;
     if (tab === 'join') {
       ui.colJoin.removeAttribute('data-tab-hidden');
       ui.colCreate.setAttribute('data-tab-hidden', 'true');
-      if (ui.tabJoin) ui.tabJoin.classList.add('active');
-      if (ui.tabCreate) ui.tabCreate.classList.remove('active');
+      if (ui.tabJoin) {
+        ui.tabJoin.classList.add('active');
+        ui.tabJoin.setAttribute('aria-selected', 'true');
+      }
+      if (ui.tabCreate) {
+        ui.tabCreate.classList.remove('active');
+        ui.tabCreate.setAttribute('aria-selected', 'false');
+      }
     } else {
       ui.colCreate.removeAttribute('data-tab-hidden');
       ui.colJoin.setAttribute('data-tab-hidden', 'true');
-      if (ui.tabCreate) ui.tabCreate.classList.add('active');
-      if (ui.tabJoin) ui.tabJoin.classList.remove('active');
+      if (ui.tabCreate) {
+        ui.tabCreate.classList.add('active');
+        ui.tabCreate.setAttribute('aria-selected', 'true');
+      }
+      if (ui.tabJoin) {
+        ui.tabJoin.classList.remove('active');
+        ui.tabJoin.setAttribute('aria-selected', 'false');
+      }
     }
   }
 
@@ -1119,14 +1142,12 @@
       if (!roomId) { ui.roomJoinError.textContent = 'Enter a room ID.'; return; }
       if (!key) { ui.roomJoinError.textContent = 'Enter the access key.'; return; }
 
-      ui.roomJoinBtn.disabled = true;
-      ui.roomJoinBtn.textContent = 'Joining…';
+      setBtnState(ui.roomJoinBtn, true, 'Join Private Room', 'Joining…');
       try {
         await joinPrivateRoom(roomId, key);
       } catch (err) {
         ui.roomJoinError.textContent = friendlyError(err);
-        ui.roomJoinBtn.disabled = false;
-        ui.roomJoinBtn.textContent = 'Join Private Room';
+        setBtnState(ui.roomJoinBtn, false, 'Join Private Room');
       }
     });
   }
@@ -1143,16 +1164,14 @@
       if (!roomName) { ui.createRoomError.textContent = 'Enter a room name.'; return; }
       if (key.length < 4) { ui.createRoomError.textContent = 'Access key must be at least 4 characters.'; return; }
 
-      ui.createRoomBtn.disabled = true;
-      ui.createRoomBtn.textContent = 'Creating…';
+      setBtnState(ui.createRoomBtn, true, 'Create & Join Room', 'Creating…');
       try {
         var res = await sb.rpc('create_room', { p_room_id: roomId, p_room_name: roomName, p_access_key: key });
         if (res.error) throw res.error;
         var data = res.data;
         if (!data.ok) {
           ui.createRoomError.textContent = data.error || 'Could not create room.';
-          ui.createRoomBtn.disabled = false;
-          ui.createRoomBtn.textContent = 'Create Room';
+          setBtnState(ui.createRoomBtn, false, 'Create & Join Room');
           return;
         }
         toast('Room created! Share link with your team.');
@@ -1166,8 +1185,7 @@
         enterChat();
       } catch (err) {
         ui.createRoomError.textContent = friendlyError(err);
-        ui.createRoomBtn.disabled = false;
-        ui.createRoomBtn.textContent = 'Create Room';
+        setBtnState(ui.createRoomBtn, false, 'Create & Join Room');
       }
     });
   }
@@ -1709,12 +1727,12 @@
     if (ui.roomIdInput) ui.roomIdInput.value = '';
     if (ui.roomKeyInput) ui.roomKeyInput.value = '';
     if (ui.roomJoinError) ui.roomJoinError.textContent = '';
-    if (ui.roomJoinBtn) { ui.roomJoinBtn.disabled = false; ui.roomJoinBtn.textContent = 'Join Private Room'; }
+    if (ui.roomJoinBtn) { setBtnState(ui.roomJoinBtn, false, 'Join Private Room'); }
     if (ui.newRoomId) ui.newRoomId.value = '';
     if (ui.newRoomName) ui.newRoomName.value = '';
     if (ui.newRoomKey) ui.newRoomKey.value = '';
     if (ui.createRoomError) ui.createRoomError.textContent = '';
-    if (ui.createRoomBtn) { ui.createRoomBtn.disabled = false; ui.createRoomBtn.textContent = 'Create & Join'; }
+    if (ui.createRoomBtn) { setBtnState(ui.createRoomBtn, false, 'Create & Join Room'); }
 
     var pName = $('picker-name');
     if (pName) pName.textContent = state.name || 'User';

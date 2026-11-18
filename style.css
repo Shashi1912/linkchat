@@ -341,9 +341,11 @@ button:active, .room-btn-apple:active, .segment-tab:active {
   background: var(--apple-secondary-surface);
   border-radius: 12px;
   padding: 12px 14px;
-  font-size: 15px;
+  font-size: 16px; /* Prevents auto-zoom in mobile Safari */
+  min-height: 48px;
   color: var(--apple-label);
   transition: border-color 0.15s, background-color 0.15s, box-shadow 0.15s;
+  box-sizing: border-box;
 }
 
 .join-card input:focus {
@@ -363,17 +365,37 @@ button:active, .room-btn-apple:active, .segment-tab:active {
 
 .btn-apple-primary {
   border-radius: 14px;
-  padding: 13px;
+  padding: 13px 20px;
+  min-height: 48px;
   background: var(--apple-blue-gradient);
   color: white;
-  font-size: 15.5px;
-  font-weight: 600;
+  font-size: 16px;
+  font-weight: 650;
   letter-spacing: -0.01em;
-  box-shadow: 0 3px 10px rgba(0, 122, 255, 0.3);
+  box-shadow: 0 4px 14px rgba(0, 122, 255, 0.28);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  border: none;
+  cursor: pointer;
+  box-sizing: border-box;
+  transition: transform 0.15s var(--apple-spring), box-shadow 0.15s, filter 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-apple-primary:hover {
+  filter: brightness(1.04);
+  box-shadow: 0 6px 18px rgba(0, 122, 255, 0.35);
+}
+.btn-apple-primary:active {
+  transform: scale(0.98);
+  box-shadow: 0 2px 6px rgba(0, 122, 255, 0.22);
 }
 .btn-apple-primary:disabled {
   opacity: 0.55;
   cursor: default;
+  filter: grayscale(0.2);
 }
 
 .btn-apple-secondary {
@@ -710,6 +732,7 @@ button:active, .room-btn-apple:active, .segment-tab:active {
   display: flex;
   align-items: center;
   gap: 10px;
+  margin-top: 10px;
 }
 .btn-enter-room {
   flex: 1;
@@ -717,11 +740,14 @@ button:active, .room-btn-apple:active, .segment-tab:active {
   align-items: center;
   justify-content: center;
   gap: 8px;
+  min-height: 48px;
 }
 .btn-apple-danger-icon {
-  width: 44px;
-  height: 44px;
-  border-radius: 12px;
+  width: 48px;
+  height: 48px;
+  min-width: 48px;
+  min-height: 48px;
+  border-radius: 14px;
   border: 1px solid rgba(255, 59, 48, 0.25);
   background: rgba(255, 59, 48, 0.1);
   color: var(--apple-red);
@@ -730,6 +756,7 @@ button:active, .room-btn-apple:active, .segment-tab:active {
   cursor: pointer;
   flex: none;
   transition: background 0.15s, transform 0.15s;
+  -webkit-tap-highlight-color: transparent;
 }
 .btn-apple-danger-icon:hover {
   background: rgba(255, 59, 48, 0.2);
@@ -992,45 +1019,116 @@ button:active, .room-btn-apple:active, .segment-tab:active {
   background: var(--apple-separator);
 }
 
-/* Side-by-side Mobile Action Tiles (Switches between Join & Create) */
-.apple-tiles-row {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
-  gap: 10px;
-  margin-bottom: 14px;
+/* Authentic Apple iOS Segmented Control (Join vs Create) */
+.apple-segmented-control {
+  display: flex;
+  background: var(--apple-secondary-surface);
+  border: 1px solid var(--apple-border);
+  border-radius: 14px;
+  padding: 4px;
+  gap: 4px;
+  margin-bottom: 16px;
+  box-sizing: border-box;
+  width: 100%;
 }
 
-.apple-tile-toggle {
+.apple-segmented-control .segment-tab {
+  flex: 1;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 11px 14px;
+  min-height: 44px; /* Apple minimum touch target */
+  border-radius: 11px;
+  border: none;
+  background: transparent;
+  color: var(--apple-secondary-label);
+  font-size: 14px;
+  font-weight: 600;
+  letter-spacing: -0.01em;
+  cursor: pointer;
+  outline: none;
+  transition: all 0.18s var(--apple-spring);
+  -webkit-tap-highlight-color: transparent;
+}
+
+.apple-segmented-control .segment-tab:hover {
+  color: var(--apple-label);
+}
+
+.apple-segmented-control .segment-tab:active {
+  transform: scale(0.98);
+}
+
+.apple-segmented-control .segment-tab.active {
+  background: var(--apple-surface-solid);
+  color: var(--apple-blue);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.12), 0 0.5px 1px rgba(0, 0, 0, 0.08);
+  font-weight: 650;
+}
+
+/* Room Action Buttons */
+.btn-action-join {
+  background: var(--apple-blue-gradient) !important;
+  color: white !important;
+  min-height: 48px;
+  font-size: 16px;
+  font-weight: 650;
+  border-radius: 14px;
+  box-shadow: 0 4px 14px rgba(0, 122, 255, 0.28);
   display: flex;
   align-items: center;
-  gap: 10px;
-  background: var(--apple-secondary-surface);
-  border: 1.5px solid var(--apple-border);
-  border-radius: 16px;
-  padding: 11px 12px;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  border: none;
   cursor: pointer;
-  text-align: left;
-  outline: none;
-  position: relative;
-  transition: background 0.18s, border-color 0.18s, transform 0.15s var(--spring-snappy), box-shadow 0.18s;
-  box-sizing: border-box;
+  margin-top: 6px;
+  transition: transform 0.15s var(--apple-spring), box-shadow 0.15s, filter 0.15s;
+  -webkit-tap-highlight-color: transparent;
 }
-.apple-tile-toggle:hover {
-  background: var(--apple-tertiary-surface);
+.btn-action-join:hover {
+  filter: brightness(1.04);
+  box-shadow: 0 6px 18px rgba(0, 122, 255, 0.35);
 }
-.apple-tile-toggle:active {
-  transform: scale(0.97);
+.btn-action-join:active {
+  transform: scale(0.98);
+  box-shadow: 0 2px 6px rgba(0, 122, 255, 0.22);
 }
-.apple-tile-toggle.active {
-  background: rgba(0, 122, 255, 0.09);
-  border-color: var(--apple-blue);
-  box-shadow: 0 0 0 1px var(--apple-blue), 0 3px 12px rgba(0, 122, 255, 0.15);
+
+.btn-action-create {
+  background: linear-gradient(135deg, #34c759 0%, #28a745 100%) !important;
+  color: white !important;
+  min-height: 48px;
+  font-size: 16px;
+  font-weight: 650;
+  border-radius: 14px;
+  box-shadow: 0 4px 14px rgba(52, 199, 89, 0.28);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: 100%;
+  border: none;
+  cursor: pointer;
+  margin-top: 6px;
+  transition: transform 0.15s var(--apple-spring), box-shadow 0.15s, filter 0.15s;
+  -webkit-tap-highlight-color: transparent;
+}
+.btn-action-create:hover {
+  filter: brightness(1.04);
+  box-shadow: 0 6px 18px rgba(52, 199, 89, 0.35);
+}
+.btn-action-create:active {
+  transform: scale(0.98);
+  box-shadow: 0 2px 6px rgba(52, 199, 89, 0.22);
 }
 
 .tile-toggle-icon {
-  width: 34px;
-  height: 34px;
-  border-radius: 10px;
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
   display: grid;
   place-items: center;
   flex: none;
@@ -1044,48 +1142,9 @@ button:active, .room-btn-apple:active, .segment-tab:active {
   color: var(--apple-green);
 }
 .tile-toggle-icon.sm {
-  width: 30px;
-  height: 30px;
+  width: 28px;
+  height: 28px;
   border-radius: 8px;
-}
-
-.tile-toggle-info {
-  flex: 1;
-  min-width: 0;
-}
-.tile-toggle-info strong {
-  display: block;
-  font-size: 13.5px;
-  font-weight: 650;
-  letter-spacing: -0.015em;
-  color: var(--apple-label);
-}
-.tile-toggle-info small {
-  display: block;
-  font-size: 11px;
-  color: var(--apple-secondary-label);
-  margin-top: 1px;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
-}
-
-.tile-check-indicator {
-  width: 18px;
-  height: 18px;
-  border-radius: 50%;
-  background: var(--apple-blue);
-  color: white;
-  display: grid;
-  place-items: center;
-  flex: none;
-  opacity: 0;
-  transform: scale(0.5);
-  transition: opacity 0.15s, transform 0.15s var(--spring-snappy);
-}
-.apple-tile-toggle.active .tile-check-indicator {
-  opacity: 1;
-  transform: scale(1);
 }
 
 /* Room Tile Cards (Desktop & Mobile) */
@@ -1147,8 +1206,8 @@ button:active, .room-btn-apple:active, .segment-tab:active {
   .room-tile-box[data-tab-hidden="true"] {
     display: flex !important; /* Show both side-by-side tiles on desktop */
   }
-  .apple-tiles-row {
-    display: none; /* Tiles are already visible side-by-side */
+  .apple-segmented-control {
+    display: none; /* Segmented control not needed when side-by-side */
   }
   .tiles-section-divider {
     margin: 20px 0 16px;
@@ -1157,25 +1216,97 @@ button:active, .room-btn-apple:active, .segment-tab:active {
 
 /* Mobile & Small Screens: Single Active Tile with Top Side-by-Side Switcher */
 @media (max-width: 680px) {
+  .join {
+    padding: 12px 10px;
+    padding-top: max(12px, env(safe-area-inset-top));
+    padding-bottom: max(16px, env(safe-area-inset-bottom));
+    align-items: flex-start;
+  }
+  .join-card {
+    padding: 24px 18px;
+    border-radius: 20px;
+    max-width: 100%;
+  }
+  .join-card h1 {
+    font-size: 24px;
+  }
+  .logo-apple {
+    width: 50px;
+    height: 50px;
+    border-radius: 14px;
+    margin-bottom: 14px;
+  }
   .room-picker-wide {
-    padding: 20px 16px;
-    max-width: 420px;
+    padding: 18px 14px;
+    max-width: 100%;
+    width: 100%;
+    border-radius: 20px;
+    box-sizing: border-box;
   }
-  .apple-tile-hero {
-    padding: 12px 14px;
+  .room-picker-header {
+    margin-bottom: 14px;
   }
-  .tile-hero-icon {
+  .room-picker-header h2 {
+    font-size: 21px;
+  }
+  .section-title-bar {
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+    margin-bottom: 14px;
+  }
+  .section-title-left {
+    justify-content: space-between;
+    width: 100%;
+  }
+  .section-title-right {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    width: 100%;
+  }
+  .apple-view-segmented {
+    flex: 1;
+    display: flex;
+    border-radius: 11px;
+    padding: 3px;
+    background: var(--apple-secondary-surface);
+  }
+  .apple-view-segmented .view-tab {
+    flex: 1;
+    text-align: center;
+    padding: 8px 10px;
+    min-height: 36px;
+    font-size: 13px;
+    border-radius: 8px;
+  }
+  .btn-icon-subtle {
     width: 38px;
     height: 38px;
+    min-width: 38px;
+    border-radius: 10px;
   }
   .room-grid-layout {
     display: block;
   }
   .room-tile-box {
     padding: 16px 14px;
+    border-radius: 18px;
   }
   .room-tile-box[data-tab-hidden="true"] {
     display: none !important;
+  }
+  .apple-segmented-control {
+    display: flex;
+  }
+  .input-group input,
+  .join-card input {
+    font-size: 16px !important; /* Prevents auto-zoom in mobile Safari / Chrome */
+    height: 48px;
+  }
+  .btn-enter-room {
+    min-height: 48px;
+    font-size: 16px;
   }
 }
 
