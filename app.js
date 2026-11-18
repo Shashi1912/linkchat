@@ -1098,8 +1098,15 @@
         createBtn.classList.remove('active');
         createBtn.setAttribute('aria-expanded', 'false');
       }
-      if (willOpen && ui.roomIdInput) {
-        setTimeout(function () { ui.roomIdInput.focus(); }, 120);
+      if (willOpen) {
+        setTimeout(function () {
+          if (joinCol) {
+            joinCol.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }
+          if (ui.roomIdInput) {
+            ui.roomIdInput.focus({ preventScroll: true });
+          }
+        }, 120);
       }
     } else if (type === 'create') {
       var willOpen = createCol ? createCol.hidden : false;
@@ -1113,8 +1120,15 @@
         joinBtn.classList.remove('active');
         joinBtn.setAttribute('aria-expanded', 'false');
       }
-      if (willOpen && ui.newRoomId) {
-        setTimeout(function () { ui.newRoomId.focus(); }, 120);
+      if (willOpen) {
+        setTimeout(function () {
+          if (createCol) {
+            createCol.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+          }
+          if (ui.newRoomId) {
+            ui.newRoomId.focus({ preventScroll: true });
+          }
+        }, 120);
       }
     } else {
       // Hide all forms
