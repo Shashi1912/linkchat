@@ -703,6 +703,15 @@
         onRealtimeRow(payload.payload);
       }
     })
+    .on('broadcast', { event: 'chat_cleared' }, function (payload) {
+      if (payload && payload.payload && payload.payload.room_id === state.room) {
+        state.clearedAt = Date.now();
+        store('linkchat.clearedAt_' + state.room, String(state.clearedAt));
+        state.msgs = new Map();
+        render('auto');
+        toast('Conversation cleared by participant.');
+      }
+    })
     .on('broadcast', { event: 'refresh_feed' }, function () {
       catchUp();
     })
@@ -712,6 +721,16 @@
       function (payload) {
         if (payload && payload.new && payload.new.room_id === state.room) {
           onRealtimeRow(payload.new);
+        }
+      })
+    .on('postgres_changes',
+      { event: 'DELETE', schema: 'public', table: 'messages' },
+      function (payload) {
+        if (payload && payload.old && payload.old.id) {
+          state.msgs.delete(payload.old.id);
+          render('auto');
+        } else {
+          catchUp();
         }
       })
     .on('presence', { event: 'sync' }, updatePresence)
@@ -965,13 +984,54 @@
       }
     });
 
-    ui.clearConfirmBtn.addEventListener('click', function () {
-      ui.clearModal.hidden = true;
+    ui.clearConfirmBtn.addEventListener('click', async function () {
+      var btn = ui.clearConfirmBtn;
+      btn.disabled = true;
+      btn.textContent = 'Clearing…';
+
+      var roomId = state.room;
+      var roomKey = state.roomKey;
+
+      try {
+        // 1. Delete messages from database via RPC
+        var rpcRes = await sb.rpc('clear_room_messages', {
+          p_room_id: roomId,
+          p_access_key: roomKey || ''
+        });
+
+        if (rpcRes.error) {
+          console.warn('RPC clear_room_messages notice:', rpcRes.error.message || rpcRes.error);
+          // Fallback direct delete
+          var directRes = await sb.from('messages').delete().eq('room_id', roomId);
+          if (directRes.error) {
+            console.warn('Direct delete messages notice:', directRes.error.message || directRes.error);
+          }
+        }
+
+        // 2. Broadcast to all other devices in this room
+        if (state.channel) {
+          try {
+            state.channel.send({
+              type: 'broadcast',
+              event: 'chat_cleared',
+              payload: { room_id: roomId }
+            });
+          } catch (e) {}
+        }
+      } catch (err) {
+        console.warn('Clear conversation error:', err);
+      } finally {
+        btn.disabled = false;
+        btn.textContent = 'Clear Chat';
+        ui.clearModal.hidden = true;
+      }
+
+      // 3. Clear local state
       state.clearedAt = Date.now();
-      store('linkchat.clearedAt_' + state.room, String(state.clearedAt));
+      store('linkchat.clearedAt_' + roomId, String(state.clearedAt));
       state.msgs = new Map();
       render('auto');
-      toast('Conversation cleared from view.');
+      toast('Conversation cleared from database & view.');
       if (window.navigator && window.navigator.vibrate) {
         window.navigator.vibrate([15]);
       }
@@ -1120,6 +1180,13 @@
 
   // ---------- Room Views & Apple Dropdown ----------
   var currentSelectedRoom = { id: 'general', name: 'General Chat', isPrivate: false };
+  var latestMsgCounts = {};
+
+  function formatMsgCount(count) {
+    if (!count || count <= 0) return '0 msgs';
+    if (count === 1) return '1 msg';
+    return count + ' msgs';
+  }
 
   function setRoomViewMode(mode) {
     var isTiles = mode === 'tiles';
@@ -1141,8 +1208,10 @@
     if (ui.dropdownTriggerName) {
       ui.dropdownTriggerName.textContent = roomName || roomId;
     }
+    var count = latestMsgCounts[roomId] || 0;
+    var countStr = ' • ' + formatMsgCount(count);
     if (ui.dropdownTriggerSub) {
-      ui.dropdownTriggerSub.textContent = isPrivate ? ('#' + roomId) : 'Public Community Room';
+      ui.dropdownTriggerSub.textContent = (isPrivate ? ('#' + roomId) : 'Public Community Room') + countStr;
     }
     if (ui.dropdownTriggerAvatar) {
       ui.dropdownTriggerAvatar.textContent = isPrivate ? (roomName || roomId).charAt(0).toUpperCase() : '💬';
@@ -1277,6 +1346,8 @@
     if (dropList) dropList.innerHTML = '<div class="rooms-loading">Loading rooms…</div>';
 
     var rooms = [];
+    latestMsgCounts = {};
+
     try {
       var res = await sb.from('rooms').select('id, name, created_at').order('created_at', { ascending: false });
       if (!res.error && res.data) {
@@ -1285,10 +1356,28 @@
     } catch (e) {
       console.warn('Could not load rooms:', e);
     }
-    renderRoomsDirectory(rooms);
+
+    try {
+      var countRes = await sb.from('messages').select('room_id');
+      if (!countRes.error && countRes.data) {
+        countRes.data.forEach(function (m) {
+          if (m && m.room_id) {
+            latestMsgCounts[m.room_id] = (latestMsgCounts[m.room_id] || 0) + 1;
+          }
+        });
+      }
+    } catch (e) {
+      console.warn('Could not load message counts:', e);
+    }
+
+    renderRoomsDirectory(rooms, latestMsgCounts);
   }
 
-  function renderRoomsDirectory(rooms) {
+  function renderRoomsDirectory(rooms, msgCounts) {
+    msgCounts = msgCounts || latestMsgCounts || {};
+    var genCount = msgCounts['general'] || 0;
+    var genCountText = formatMsgCount(genCount);
+
     // 1. Populate Tiles view
     var tilesContainer = $('rooms-list-container');
     if (tilesContainer) {
@@ -1306,8 +1395,9 @@
         '</div>' +
         '<div class="room-tile-meta">' +
           '<strong>General Chat</strong>' +
-          '<small>Public community room • No key needed</small>' +
+          '<small>Public community room • ' + genCountText + '</small>' +
         '</div>' +
+        '<span class="room-tile-count-badge ' + (genCount > 0 ? '' : 'zero') + '" title="' + genCount + ' messages">💬 ' + genCount + '</span>' +
         '<span class="room-tile-badge public">OPEN</span>';
       genTile.onclick = function () { joinGeneral(); };
       tilesContainer.appendChild(genTile);
@@ -1318,12 +1408,15 @@
           card.className = 'room-tile-card';
           var initial = (r.name || r.id || 'R').charAt(0).toUpperCase();
           var hasKey = Boolean(load('linkchat.roomKey_' + r.id));
+          var rCount = msgCounts[r.id] || 0;
+          var rCountText = formatMsgCount(rCount);
           card.innerHTML =
             '<div class="room-tile-avatar private">' + escapeHtml(initial) + '</div>' +
             '<div class="room-tile-meta">' +
               '<strong>' + escapeHtml(r.name || r.id) + '</strong>' +
-              '<small>#' + escapeHtml(r.id) + '</small>' +
+              '<small>#' + escapeHtml(r.id) + ' • ' + rCountText + '</small>' +
             '</div>' +
+            '<span class="room-tile-count-badge ' + (rCount > 0 ? '' : 'zero') + '" title="' + rCount + ' messages">💬 ' + rCount + '</span>' +
             (hasKey
               ? '<span class="room-tile-badge public">ENTER</span>'
               : '<span class="room-tile-badge locked">🔒 KEY</span>') +
@@ -1362,8 +1455,9 @@
         '<div class="dropdown-item-avatar" style="background: var(--apple-blue-gradient);">💬</div>' +
         '<div class="dropdown-item-meta">' +
           '<strong>General Chat</strong>' +
-          '<small>Public community room • No key needed</small>' +
-        '</div>';
+          '<small>Public community room • ' + genCountText + '</small>' +
+        '</div>' +
+        '<span class="room-tile-count-badge ' + (genCount > 0 ? '' : 'zero') + '">💬 ' + genCount + '</span>';
       genItem.onclick = function () {
         selectDropdownRoom('general', 'General Chat', false);
         toggleDropdown(false);
@@ -1374,6 +1468,8 @@
         rooms.forEach(function (r) {
           var initial = (r.name || r.id || 'R').charAt(0).toUpperCase();
           var hasKey = Boolean(load('linkchat.roomKey_' + r.id));
+          var rCount = msgCounts[r.id] || 0;
+          var rCountText = formatMsgCount(rCount);
           var row = document.createElement('div');
           row.style.display = 'flex';
           row.style.alignItems = 'center';
@@ -1388,8 +1484,9 @@
             '<div class="dropdown-item-avatar" style="background: linear-gradient(135deg, #af52de, #5856d6);">' + escapeHtml(initial) + '</div>' +
             '<div class="dropdown-item-meta">' +
               '<strong>' + escapeHtml(r.name || r.id) + '</strong>' +
-              '<small>#' + escapeHtml(r.id) + (hasKey ? ' • Key Saved' : ' • 🔒 Key Required') + '</small>' +
-            '</div>';
+              '<small>#' + escapeHtml(r.id) + ' • ' + rCountText + (hasKey ? ' • Key Saved' : ' • 🔒 Key Required') + '</small>' +
+            '</div>' +
+            '<span class="room-tile-count-badge ' + (rCount > 0 ? '' : 'zero') + '" style="margin-right: 6px;">💬 ' + rCount + '</span>';
           itemBtn.onclick = function () {
             selectDropdownRoom(r.id, r.name || r.id, true);
             toggleDropdown(false);
@@ -1417,6 +1514,9 @@
         });
       }
     }
+
+    // Refresh trigger sub with latest count
+    selectDropdownRoom(currentSelectedRoom.id, currentSelectedRoom.name, currentSelectedRoom.isPrivate);
   }
 
   function handleRoomTileClick(roomId, roomName) {

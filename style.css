@@ -855,6 +855,26 @@ button:active, .room-btn-apple:active, .segment-tab:active {
   color: var(--apple-secondary-label);
 }
 
+.room-tile-count-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: 980px;
+  background: rgba(0, 122, 255, 0.1);
+  color: var(--apple-blue);
+  border: 1px solid rgba(0, 122, 255, 0.2);
+  white-space: nowrap;
+  flex: none;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.room-tile-count-badge.zero {
+  background: var(--apple-tertiary-surface);
+  color: var(--apple-secondary-label);
+  border-color: var(--apple-border);
+}
+
 .rooms-loading, .rooms-empty, .rooms-error {
   grid-column: 1 / -1;
   text-align: center;

@@ -6,7 +6,7 @@
   <title>LinkChat</title>
   <meta name="description" content="Instant, secure real-time messaging inspired by Apple design." />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='7' fill='%23007aff'/%3E%3Cpath d='M7 8.5h10M7 12.5h6' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E" />
-  <link rel="stylesheet" href="style.css?v=2.6" />
+  <link rel="stylesheet" href="style.css?v=2.7" />
   <script>
     // Apply saved theme before paint (prevents dark/light flash)
     try {
@@ -398,7 +398,7 @@
         </svg>
       </div>
       <h3 id="clear-modal-title">Clear Conversation?</h3>
-      <p class="apple-modal-desc">This clears the messages from your screen. Incoming messages will still arrive in real time.</p>
+      <p class="apple-modal-desc">This permanently clears the conversation messages from both the database and your screen.</p>
       <div class="apple-modal-actions">
         <button id="clear-confirm-btn" type="button" class="btn-apple-danger">Clear Chat</button>
         <button id="clear-cancel-btn" type="button" class="btn-apple-cancel">Cancel</button>
@@ -471,6 +471,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
   <script src="config.js"></script>
-  <script src="app.js?v=2.6"></script>
+  <script src="app.js?v=2.7"></script>
 </body>
 </html>
