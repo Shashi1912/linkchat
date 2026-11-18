@@ -41,77 +41,96 @@
     </form>
   </main>
 
-  <!-- Room picker screen -->
+  <!-- Side-by-Side Room Picker Screen -->
   <main id="room-picker" class="join" hidden>
-    <div class="join-card room-card">
+    <div class="join-card room-picker-wide">
       <div class="room-picker-header">
-        <h2>Choose Room</h2>
-        <p class="subtitle">Join General Chat or enter a private room.</p>
+        <h2>Choose a Room</h2>
+        <p class="subtitle">Join an existing room or create your own private room side-by-side.</p>
+
+        <!-- Segmented Control Switcher for Mobile Screens -->
+        <div class="apple-segmented" id="room-segmented">
+          <button type="button" class="segment-tab active" id="tab-join">Join Room</button>
+          <button type="button" class="segment-tab" id="tab-create">Create Room</button>
+        </div>
       </div>
 
-      <!-- General room -->
-      <button id="general-btn" type="button" class="room-btn-apple">
-        <div class="room-badge-icon general">
-          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-          </svg>
-        </div>
-        <div class="room-btn-text">
-          <strong>General Chat</strong>
-          <small>Open public community room</small>
-        </div>
-        <div class="chevron-arrow">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="9 18 15 12 9 6"></polyline>
-          </svg>
-        </div>
-      </button>
-
-      <div class="apple-divider"><span>OR JOIN PRIVATE</span></div>
-
-      <!-- Join private room -->
-      <form id="join-room-form" class="room-subform" novalidate>
-        <div class="input-group">
-          <label for="room-id-input">Room ID</label>
-          <input id="room-id-input" type="text" maxlength="40" placeholder="e.g. design-team" />
-        </div>
-        <div class="input-group" style="margin-top: 10px;">
-          <label for="room-key-input">Access Key</label>
-          <input id="room-key-input" type="password" maxlength="64" placeholder="Enter secret key" />
-        </div>
-        <p id="room-join-error" class="form-error" role="alert"></p>
-        <button id="room-join-btn" type="submit" class="btn-apple-secondary">Join Private Room</button>
-      </form>
-
-      <div class="apple-divider"><span>OR CREATE</span></div>
-
-      <!-- Create room -->
-      <details id="create-room-details" class="apple-details">
-        <summary class="apple-summary">
-          <span>Create New Room</span>
-          <svg class="summary-chevron" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="6 9 12 15 18 9"></polyline>
-          </svg>
-        </summary>
-        <form id="create-room-form" class="create-room-inner" novalidate>
-          <div class="input-group">
-            <label for="new-room-id">Unique Room ID</label>
-            <input id="new-room-id" type="text" maxlength="40" placeholder="e.g. project-x" />
+      <!-- Side-by-Side Dual Column Grid -->
+      <div class="room-grid-layout">
+        <!-- Column 1: Join Existing Room -->
+        <div class="room-grid-col" id="col-join">
+          <div class="col-header">
+            <span class="col-pill">PUBLIC & PRIVATE</span>
+            <h3>Join Room</h3>
           </div>
-          <div class="input-group" style="margin-top: 10px;">
-            <label for="new-room-name">Display Name</label>
-            <input id="new-room-name" type="text" maxlength="60" placeholder="e.g. Project X Team" />
-          </div>
-          <div class="input-group" style="margin-top: 10px;">
-            <label for="new-room-key">Access Key</label>
-            <input id="new-room-key" type="text" maxlength="64" placeholder="Key required to enter" />
-          </div>
-          <p id="create-room-error" class="form-error" role="alert"></p>
-          <button id="create-room-btn" type="submit" class="btn-apple-primary">Create & Join</button>
-        </form>
-      </details>
 
-      <button id="room-back-btn" type="button" class="btn-apple-text">← Change Display Name</button>
+          <!-- General Chat instant button -->
+          <button id="general-btn" type="button" class="room-btn-apple">
+            <div class="room-badge-icon general">
+              <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
+              </svg>
+            </div>
+            <div class="room-btn-text">
+              <strong>General Chat</strong>
+              <small>Open public community room</small>
+            </div>
+            <div class="chevron-arrow">
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </div>
+          </button>
+
+          <div class="apple-divider"><span>OR PRIVATE ROOM</span></div>
+
+          <!-- Join private room form -->
+          <form id="join-room-form" class="room-subform" novalidate>
+            <div class="input-group">
+              <label for="room-id-input">Room ID</label>
+              <input id="room-id-input" type="text" maxlength="40" placeholder="e.g. design-team" />
+            </div>
+            <div class="input-group" style="margin-top: 10px;">
+              <label for="room-key-input">Access Key</label>
+              <input id="room-key-input" type="password" maxlength="64" placeholder="Enter secret key" />
+            </div>
+            <p id="room-join-error" class="form-error" role="alert"></p>
+            <button id="room-join-btn" type="submit" class="btn-apple-secondary">Join Private Room</button>
+          </form>
+        </div>
+
+        <!-- Vertical Divider (Desktop) -->
+        <div class="col-separator" aria-hidden="true"></div>
+
+        <!-- Column 2: Create a Room -->
+        <div class="room-grid-col" id="col-create">
+          <div class="col-header">
+            <span class="col-pill new">NEW</span>
+            <h3>Create Room</h3>
+          </div>
+
+          <form id="create-room-form" class="room-subform" novalidate>
+            <div class="input-group">
+              <label for="new-room-id">Room ID</label>
+              <input id="new-room-id" type="text" maxlength="40" placeholder="e.g. team-mars" />
+            </div>
+            <div class="input-group" style="margin-top: 10px;">
+              <label for="new-room-name">Display Name</label>
+              <input id="new-room-name" type="text" maxlength="60" placeholder="e.g. Mars Project Team" />
+            </div>
+            <div class="input-group" style="margin-top: 10px;">
+              <label for="new-room-key">Access Key</label>
+              <input id="new-room-key" type="text" maxlength="64" placeholder="Key required to enter" />
+            </div>
+            <p id="create-room-error" class="form-error" role="alert"></p>
+            <button id="create-room-btn" type="submit" class="btn-apple-primary">Create & Join</button>
+          </form>
+        </div>
+      </div>
+
+      <div class="room-picker-footer">
+        <button id="room-back-btn" type="button" class="btn-apple-text">← Change Display Name</button>
+      </div>
     </div>
   </main>
 
@@ -164,6 +183,16 @@
             <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
           </svg>
           <span id="notif-status-dot" class="status-dot"></span>
+        </button>
+
+        <!-- Clear Chat Button -->
+        <button id="clear-btn" class="apple-icon-btn" type="button" title="Clear chat view" aria-label="Clear chat">
+          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            <line x1="10" y1="11" x2="10" y2="17"></line>
+            <line x1="14" y1="11" x2="14" y2="17"></line>
+          </svg>
         </button>
 
         <!-- Copy Link Button -->
@@ -238,6 +267,26 @@
           </svg>
         </button>
       </form>
+    </div>
+  </div>
+
+  <!-- Apple Modal Dialog for Clear Chat (§16 Agency & Forgiveness) -->
+  <div id="clear-modal" class="apple-modal-scrim" hidden>
+    <div class="apple-modal-card" role="dialog" aria-modal="true" aria-labelledby="clear-modal-title">
+      <div class="apple-modal-icon-wrap">
+        <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="3 6 5 6 21 6"></polyline>
+          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          <line x1="10" y1="11" x2="10" y2="17"></line>
+          <line x1="14" y1="11" x2="14" y2="17"></line>
+        </svg>
+      </div>
+      <h3 id="clear-modal-title">Clear Conversation?</h3>
+      <p class="apple-modal-desc">This clears the messages from your screen. Incoming messages will still arrive in real time.</p>
+      <div class="apple-modal-actions">
+        <button id="clear-confirm-btn" type="button" class="btn-apple-danger">Clear Chat</button>
+        <button id="clear-cancel-btn" type="button" class="btn-apple-cancel">Cancel</button>
+      </div>
     </div>
   </div>
 

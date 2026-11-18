@@ -24,7 +24,7 @@
   var ui = {
     join: $('join'), joinForm: $('join-form'), nameInput: $('name-input'),
     joinBtn: $('join-btn'), joinError: $('join-error'),
-    // Room picker
+    // Side-by-Side Room Picker
     roomPicker: $('room-picker'), generalBtn: $('general-btn'),
     joinRoomForm: $('join-room-form'), roomIdInput: $('room-id-input'),
     roomKeyInput: $('room-key-input'), roomJoinError: $('room-join-error'),
@@ -33,6 +33,8 @@
     newRoomName: $('new-room-name'), newRoomKey: $('new-room-key'),
     createRoomError: $('create-room-error'), createRoomBtn: $('create-room-btn'),
     roomBackBtn: $('room-back-btn'),
+    tabJoin: $('tab-join'), tabCreate: $('tab-create'),
+    colJoin: $('col-join'), colCreate: $('col-create'),
     // Dynamic Island In-App Banner
     banner: $('in-app-banner'), bannerPill: $('banner-pill-btn'),
     bannerAvatar: $('banner-avatar'), bannerSender: $('banner-sender'), bannerText: $('banner-text'),
@@ -40,6 +42,8 @@
     chat: $('chat'), setup: $('setup'), roomName: $('room-name'),
     online: $('online'), onlineCount: $('online-count'), onlineList: $('online-list'),
     conn: $('conn'), copyBtn: $('copy-btn'), roomsBtn: $('rooms-btn'),
+    clearBtn: $('clear-btn'), clearModal: $('clear-modal'),
+    clearConfirmBtn: $('clear-confirm-btn'), clearCancelBtn: $('clear-cancel-btn'),
     themeBtn: $('theme-btn'), themeIcon: $('theme-icon'),
     notifBtn: $('notif-btn'), notifDot: $('notif-status-dot'),
     leaveBtn: $('leave-btn'),
@@ -125,23 +129,21 @@
     return audioCtx;
   }
 
-  // Harmonic chime on incoming message
   function playReceiveSound() {
     try {
       var ctx = getAudioContext();
       if (!ctx) return;
       var now = ctx.currentTime;
 
-      // Dual harmonic sine waves for crisp bell chime
       var osc1 = ctx.createOscillator();
       var osc2 = ctx.createOscillator();
       var gain = ctx.createGain();
 
       osc1.type = 'sine';
       osc2.type = 'sine';
-      osc1.frequency.setValueAtTime(880, now);        // A5
+      osc1.frequency.setValueAtTime(880, now);
       osc1.frequency.exponentialRampToValueAtTime(1760, now + 0.12);
-      osc2.frequency.setValueAtTime(1320, now);       // E6
+      osc2.frequency.setValueAtTime(1320, now);
       osc2.frequency.exponentialRampToValueAtTime(2640, now + 0.12);
 
       gain.gain.setValueAtTime(0.08, now);
@@ -156,14 +158,12 @@
       osc1.stop(now + 0.36);
       osc2.stop(now + 0.36);
 
-      // Subtle haptic tick on mobile devices (§13)
       if (window.navigator && window.navigator.vibrate) {
         window.navigator.vibrate([12]);
       }
     } catch (e) {}
   }
 
-  // Gentle pop on message sent
   function playSendSound() {
     try {
       var ctx = getAudioContext();
@@ -197,10 +197,8 @@
   function updateThemeIcon(t) {
     if (!ui.themeIcon) return;
     if (t === 'dark') {
-      // Show sun icon when in dark mode
       ui.themeIcon.innerHTML = '<circle cx="12" cy="12" r="5"></circle><line x1="12" y1="1" x2="12" y2="3"></line><line x1="12" y1="21" x2="12" y2="23"></line><line x1="4.22" y1="4.22" x2="5.64" y2="5.64"></line><line x1="18.36" y1="18.36" x2="19.78" y2="19.78"></line><line x1="1" y1="12" x2="3" y2="12"></line><line x1="21" y1="12" x2="23" y2="12"></line><line x1="4.22" y1="19.78" x2="5.64" y2="18.36"></line><line x1="18.36" y1="5.64" x2="19.78" y2="4.22"></line>';
     } else {
-      // Show moon icon when in light mode
       ui.themeIcon.innerHTML = '<path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>';
     }
   }
@@ -286,12 +284,9 @@
     });
   }
 
-  // Trigger notification when someone else sends a message
   function notifyIncomingMessage(displayName, content) {
-    // 1. Play synthesized Apple chime
     playReceiveSound();
 
-    // 2. If tab is backgrounded / hidden, fire Web Notification
     if (document.hidden) {
       unreadCount++;
       document.title = '(' + unreadCount + ') LinkChat';
@@ -310,14 +305,12 @@
         } catch (e) {}
       }
     } else {
-      // 3. Tab is visible: if scrolled up, show Dynamic Island banner
       if (!nearBottom()) {
         showInAppBanner(displayName, content);
       }
     }
   }
 
-  // Clear unread indicator when user returns to tab
   window.addEventListener('focus', function () {
     unreadCount = 0;
     document.title = 'LinkChat';
@@ -338,6 +331,7 @@
     room: DEFAULT_ROOM,
     roomDisplayName: DEFAULT_ROOM_NAME,
     roomKey: '',
+    clearedAt: 0,        // timestamp before which messages are hidden locally
     msgs: new Map(),
     oldestRaw: null,
     hasMore: false,
@@ -365,6 +359,8 @@
 
   function upsert(row) {
     if (!row || (row.room_id && row.room_id !== state.room)) return;
+    // If chat was cleared locally and this message is older than clear timestamp, skip
+    if (state.clearedAt && Date.parse(row.created_at) < state.clearedAt) return;
     var old = state.msgs.get(row.id);
     if (old && old.localUrl) URL.revokeObjectURL(old.localUrl);
     state.msgs.set(row.id, toMsg(row));
@@ -427,8 +423,28 @@
     ui.olderBtn.hidden = !state.hasMore;
     ui.olderBtn.disabled = state.loadingOlder;
     ui.olderBtn.textContent = state.loadingOlder ? 'Loading…' : 'Load Earlier Messages';
-    if (state.ready && list.length === 0) ui.status.textContent = 'No messages yet. Send a message to start.';
-    else if (state.ready) ui.status.textContent = '';
+
+    if (state.ready && list.length === 0) {
+      if (state.clearedAt) {
+        ui.status.innerHTML = 'Conversation cleared. Messages from now on will appear below.<br><button id="restore-history-btn" class="restore-btn" type="button">Restore Earlier Messages</button>';
+        var restBtn = $('restore-history-btn');
+        if (restBtn) {
+          restBtn.onclick = function () {
+            store('linkchat.clearedAt_' + state.room, null);
+            state.clearedAt = 0;
+            state.oldestRaw = null;
+            loadLatest().then(function () {
+              render('bottom');
+              toast('Chat history restored!');
+            });
+          };
+        }
+      } else {
+        ui.status.textContent = 'No messages yet. Send a message to start.';
+      }
+    } else if (state.ready) {
+      ui.status.textContent = '';
+    }
 
     if (mode === 'bottom' || (mode !== 'prepend' && wasNear)) { scrollToBottom(); stuckToBottom = true; }
     else if (mode === 'prepend') ui.messages.scrollTop = prevTop + (ui.messages.scrollHeight - prevHeight);
@@ -498,7 +514,11 @@
   }
 
   async function loadLatest() {
-    var res = await baseQuery().order('created_at', { ascending: false }).limit(PAGE_SIZE);
+    var query = baseQuery();
+    if (state.clearedAt) {
+      query = query.gt('created_at', new Date(state.clearedAt).toISOString());
+    }
+    var res = await query.order('created_at', { ascending: false }).limit(PAGE_SIZE);
     if (res.error) throw res.error;
     res.data.forEach(upsert);
     state.hasMore = res.data.length === PAGE_SIZE;
@@ -545,7 +565,6 @@
     upsert(row);
     render('auto');
 
-    // If new incoming message from someone else, trigger notification
     if (isNew && state.user && row.user_id !== state.user.id) {
       notifyIncomingMessage(row.display_name, row.content);
     }
@@ -622,7 +641,6 @@
       });
   }
 
-  // Wake socket and catch up on visibility change & online (§1)
   document.addEventListener('visibilitychange', function () {
     if (document.visibilityState === 'visible' && state.ready) {
       if (!isWsConnected()) {
@@ -672,7 +690,7 @@
     ui.input.value = '';
     updateComposer();
     render('bottom');
-    playSendSound(); // Apple audio feedback (§13)
+    playSendSound();
     insert(m);
   });
 
@@ -786,6 +804,35 @@
     toast(state.room === 'general' ? 'Chat link copied!' : 'Private room link copied (with key)!');
   });
 
+  // ---------- Clear Chat Feature (§16 Agency & Forgiveness) ----------
+  if (ui.clearBtn && ui.clearModal) {
+    ui.clearBtn.addEventListener('click', function () {
+      ui.clearModal.hidden = false;
+    });
+
+    ui.clearCancelBtn.addEventListener('click', function () {
+      ui.clearModal.hidden = true;
+    });
+
+    ui.clearModal.addEventListener('click', function (e) {
+      if (e.target === ui.clearModal) {
+        ui.clearModal.hidden = true;
+      }
+    });
+
+    ui.clearConfirmBtn.addEventListener('click', function () {
+      ui.clearModal.hidden = true;
+      state.clearedAt = Date.now();
+      store('linkchat.clearedAt_' + state.room, String(state.clearedAt));
+      state.msgs = new Map();
+      render('auto');
+      toast('Conversation cleared from view.');
+      if (window.navigator && window.navigator.vibrate) {
+        window.navigator.vibrate([15]);
+      }
+    });
+  }
+
   // ---------- Room picker & joining ----------
   if (ui.roomsBtn) {
     ui.roomsBtn.addEventListener('click', function () {
@@ -798,6 +845,27 @@
     ui.generalBtn.addEventListener('click', function () {
       joinGeneral();
     });
+  }
+
+  // Mobile Segmented Switcher for Side-by-Side Dual Column
+  function setRoomTab(tab) {
+    if (!ui.colJoin || !ui.colCreate) return;
+    if (tab === 'join') {
+      ui.colJoin.removeAttribute('data-tab-hidden');
+      ui.colCreate.setAttribute('data-tab-hidden', 'true');
+      if (ui.tabJoin) ui.tabJoin.classList.add('active');
+      if (ui.tabCreate) ui.tabCreate.classList.remove('active');
+    } else {
+      ui.colCreate.removeAttribute('data-tab-hidden');
+      ui.colJoin.setAttribute('data-tab-hidden', 'true');
+      if (ui.tabCreate) ui.tabCreate.classList.add('active');
+      if (ui.tabJoin) ui.tabJoin.classList.remove('active');
+    }
+  }
+
+  if (ui.tabJoin && ui.tabCreate) {
+    ui.tabJoin.addEventListener('click', function () { setRoomTab('join'); });
+    ui.tabCreate.addEventListener('click', function () { setRoomTab('create'); });
   }
 
   function joinGeneral() {
@@ -922,13 +990,20 @@
     if (ui.newRoomName) ui.newRoomName.value = '';
     if (ui.newRoomKey) ui.newRoomKey.value = '';
     if (ui.createRoomError) ui.createRoomError.textContent = '';
-    if (ui.createRoomBtn) { ui.createRoomBtn.disabled = false; ui.createRoomBtn.textContent = 'Create Room'; }
+    if (ui.createRoomBtn) { ui.createRoomBtn.disabled = false; ui.createRoomBtn.textContent = 'Create & Join'; }
 
     var params = new URLSearchParams(window.location.search);
     var urlRoom = params.get('room');
     var urlKey = params.get('key');
     if (urlRoom && ui.roomIdInput) ui.roomIdInput.value = urlRoom;
     if (urlKey && ui.roomKeyInput) ui.roomKeyInput.value = urlKey;
+
+    if (window.innerWidth <= 680) {
+      setRoomTab('join');
+    } else {
+      if (ui.colJoin) ui.colJoin.removeAttribute('data-tab-hidden');
+      if (ui.colCreate) ui.colCreate.removeAttribute('data-tab-hidden');
+    }
 
     show('rooms');
   }
@@ -948,6 +1023,10 @@
     show('chat');
     ui.roomName.textContent = state.roomDisplayName;
     if (ui.roomsBtn) ui.roomsBtn.hidden = !PRIVATE_ROOMS;
+
+    var savedCleared = load('linkchat.clearedAt_' + state.room);
+    state.clearedAt = savedCleared ? parseInt(savedCleared, 10) : 0;
+
     state.msgs = new Map();
     state.ready = false;
     state.buffer = [];
@@ -1011,7 +1090,6 @@
     ui.joinBtn.disabled = true;
     ui.joinBtn.textContent = 'Connecting…';
     try {
-      // Warm up audio context on user gesture (§13)
       getAudioContext();
 
       var got = await sb.auth.getSession();
