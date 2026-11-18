@@ -42,7 +42,7 @@
     banner: $('in-app-banner'), bannerPill: $('banner-pill-btn'),
     bannerAvatar: $('banner-avatar'), bannerSender: $('banner-sender'), bannerText: $('banner-text'),
     // Chat Header & Controls
-    chat: $('chat'), setup: $('setup'), roomName: $('room-name'),
+    chat: $('chat'), setup: $('setup'), roomName: $('room-name'), e2eeBadge: $('e2ee-badge'),
     online: $('online'), onlineCount: $('online-count'), onlineList: $('online-list'),
     conn: $('conn'), copyBtn: $('copy-btn'), roomsBtn: $('rooms-btn'),
     deleteCurrentRoomBtn: $('delete-current-room-btn'),
@@ -78,6 +78,7 @@
     messages: $('messages'), olderBtn: $('older-btn'), status: $('status'), feed: $('feed'),
     composer: $('composer'), input: $('msg-input'), sendBtn: $('send-btn'), counter: $('counter'),
     attachBtn: $('attach-btn'), fileInput: $('file-input'),
+    typingIndicator: $('typing-indicator'), typingName: $('typing-name'),
     toast: $('toast'),
   };
 
@@ -96,6 +97,124 @@
       return (c === 'x' ? r : (r & 3) | 8).toString(16);
     });
   }
+
+  // =========================================================================
+  // Web Crypto API — Zero-Knowledge End-to-End Encryption (AES-256-GCM)
+  // =========================================================================
+  var decryptedCache = new Map();
+
+  var E2EE = (function () {
+    var PREFIX = 'enc:v1:';
+    var cachedKeys = new Map(); // "roomId::key" -> CryptoKey
+
+    function isSupported() {
+      return Boolean(window.crypto && window.crypto.subtle);
+    }
+
+    function toB64(buf) {
+      var bin = '';
+      var bytes = new Uint8Array(buf);
+      for (var i = 0; i < bytes.byteLength; i++) {
+        bin += String.fromCharCode(bytes[i]);
+      }
+      return btoa(bin);
+    }
+
+    function fromB64(str) {
+      var bin = atob(str);
+      var bytes = new Uint8Array(bin.length);
+      for (var i = 0; i < bin.length; i++) {
+        bytes[i] = bin.charCodeAt(i);
+      }
+      return bytes;
+    }
+
+    async function deriveRoomKey(roomId, accessKey) {
+      if (!isSupported() || !accessKey || !roomId) return null;
+      var cacheKey = roomId + '::' + accessKey;
+      if (cachedKeys.has(cacheKey)) return cachedKeys.get(cacheKey);
+
+      try {
+        var enc = new TextEncoder();
+        var keyMaterial = await window.crypto.subtle.importKey(
+          'raw',
+          enc.encode(accessKey),
+          'PBKDF2',
+          false,
+          ['deriveKey']
+        );
+
+        var salt = enc.encode('linkchat-e2ee-salt-' + roomId);
+        var derivedKey = await window.crypto.subtle.deriveKey(
+          {
+            name: 'PBKDF2',
+            salt: salt,
+            iterations: 100000,
+            hash: 'SHA-256'
+          },
+          keyMaterial,
+          { name: 'AES-GCM', length: 256 },
+          false,
+          ['encrypt', 'decrypt']
+        );
+
+        cachedKeys.set(cacheKey, derivedKey);
+        return derivedKey;
+      } catch (e) {
+        console.warn('E2EE key derivation error:', e);
+        return null;
+      }
+    }
+
+    async function encryptText(cryptoKey, text) {
+      if (!cryptoKey || !text) return text;
+      try {
+        var enc = new TextEncoder();
+        var iv = window.crypto.getRandomValues(new Uint8Array(12));
+        var cipherBuf = await window.crypto.subtle.encrypt(
+          { name: 'AES-GCM', iv: iv },
+          cryptoKey,
+          enc.encode(text)
+        );
+        return PREFIX + toB64(iv) + ':' + toB64(cipherBuf);
+      } catch (e) {
+        console.warn('E2EE encrypt error:', e);
+        return text;
+      }
+    }
+
+    async function decryptText(cryptoKey, raw) {
+      if (!raw || typeof raw !== 'string') return raw;
+      if (!raw.startsWith(PREFIX)) return raw;
+      if (!cryptoKey) return '🔒 [Encrypted Message]';
+
+      try {
+        var parts = raw.slice(PREFIX.length).split(':');
+        if (parts.length !== 2) return '🔒 [Corrupted Encrypted Message]';
+        var iv = fromB64(parts[0]);
+        var cipherData = fromB64(parts[1]);
+
+        var decBuf = await window.crypto.subtle.decrypt(
+          { name: 'AES-GCM', iv: iv },
+          cryptoKey,
+          cipherData
+        );
+        return new TextDecoder().decode(decBuf);
+      } catch (e) {
+        return '🔒 [Unable to decrypt message]';
+      }
+    }
+
+    return {
+      isSupported: isSupported,
+      deriveRoomKey: deriveRoomKey,
+      encryptText: encryptText,
+      decryptText: decryptText,
+      isEncrypted: function (str) {
+        return typeof str === 'string' && str.startsWith(PREFIX);
+      }
+    };
+  })();
 
   function el(tag, cls, text) {
     var n = document.createElement(tag);
@@ -359,6 +478,9 @@
     roomDisplayName: DEFAULT_ROOM_NAME,
     roomKey: '',
     clearedAt: 0,        // timestamp before which messages are hidden locally
+    cryptoKey: null,     // AES-256-GCM derived key for private room E2EE
+    lastReadAckTs: 0,    // highest timestamp acknowledged by active peers
+    peerCount: 0,        // number of participants currently active in room
     msgs: new Map(),
     oldestRaw: null,
     hasMore: false,
@@ -371,15 +493,38 @@
   };
 
   function toMsg(row) {
+    var rawContent = row.content || '';
+    var displayContent = rawContent;
+
+    if (E2EE.isEncrypted(rawContent)) {
+      if (decryptedCache.has(rawContent)) {
+        displayContent = decryptedCache.get(rawContent);
+      } else {
+        displayContent = '🔒 [Decrypting…]';
+        if (state.cryptoKey) {
+          E2EE.decryptText(state.cryptoKey, rawContent).then(function (plain) {
+            decryptedCache.set(rawContent, plain);
+            var m = state.msgs.get(row.id);
+            if (m) {
+              m.content = plain;
+              render('auto');
+            }
+          });
+        }
+      }
+    }
+
     return {
       id: row.id,
       user_id: row.user_id,
       display_name: row.display_name,
-      content: row.content || '',
+      content: displayContent,
+      rawContent: rawContent,
       image_path: row.image_path || null,
       raw: row.created_at,
       ts: Date.parse(row.created_at),
       status: 'sent',
+      readByPeers: Boolean(row.read_by_peers),
       seq: 0,
     };
   }
@@ -515,7 +660,7 @@
 
     var meta = el('div', 'meta');
     if (m.status === 'sending') {
-      meta.append(el('span', null, 'Sending…'));
+      meta.append(el('span', 'receipt-status sending', 'Sending…'));
     } else if (m.status === 'failed') {
       var f = el('span', 'failed', 'Not sent');
       if (m.error) f.title = m.error;
@@ -528,7 +673,14 @@
       t.dateTime = m.raw;
       t.title = new Date(m.ts).toLocaleString();
       meta.append(t);
-      if (mine) meta.append(el('span', null, '✓'));
+      if (mine) {
+        var isRead = m.readByPeers || (state.peerCount > 1 && m.ts <= (state.lastReadAckTs || 0));
+        if (isRead) {
+          meta.append(el('span', 'receipt-status read', '✓✓ Read'));
+        } else {
+          meta.append(el('span', 'receipt-status delivered', '✓✓ Delivered'));
+        }
+      }
     }
     b.append(meta);
     row.append(b);
@@ -609,7 +761,11 @@
     upsert(row);
     render('auto');
 
+    if (row && row.user_id) {
+      handlePeerStopTyping(row.user_id);
+    }
     if (isNew && state.user && row.user_id !== state.user.id) {
+      sendReadAck();
       notifyIncomingMessage(row.display_name, row.content);
     }
   }
@@ -618,6 +774,7 @@
     if (!state.channel) return;
     var ps = state.channel.presenceState();
     var keys = Object.keys(ps);
+    state.peerCount = keys.length;
     var names = keys.map(function (k) {
       var metas = ps[k] || [];
       return metas.length && metas[0].name ? metas[0].name : 'Someone';
@@ -625,6 +782,118 @@
     ui.onlineCount.textContent = keys.length + ' online';
     ui.onlineList.textContent = 'Active now: ' + names.join(', ');
     ui.online.hidden = keys.length === 0;
+
+    if (keys.length > 1 && state.ready) {
+      sendReadAck();
+    }
+    render('auto');
+  }
+
+  // ---------- Ephemeral Typing Signals & Read Receipts (§Feature 4) ----------
+  var activeTypers = new Map(); // user_id -> { name, timer }
+
+  function handlePeerTyping(userId, userName) {
+    if (!userId || (state.user && userId === state.user.id)) return;
+    if (activeTypers.has(userId)) {
+      clearTimeout(activeTypers.get(userId).timer);
+    }
+    var timer = setTimeout(function () {
+      handlePeerStopTyping(userId);
+    }, 3800);
+    activeTypers.set(userId, { name: userName || 'Someone', timer: timer });
+    updateTypingUI();
+  }
+
+  function handlePeerStopTyping(userId) {
+    if (!userId) return;
+    if (activeTypers.has(userId)) {
+      clearTimeout(activeTypers.get(userId).timer);
+      activeTypers.delete(userId);
+      updateTypingUI();
+    }
+  }
+
+  function updateTypingUI() {
+    if (!ui.typingIndicator || !ui.typingName) return;
+    if (activeTypers.size === 0) {
+      ui.typingIndicator.hidden = true;
+    } else if (activeTypers.size === 1) {
+      var firstName = Array.from(activeTypers.values())[0].name;
+      ui.typingName.textContent = firstName + ' is typing…';
+      ui.typingIndicator.hidden = false;
+      if (stuckToBottom) scrollToBottom();
+    } else {
+      ui.typingName.textContent = activeTypers.size + ' people are typing…';
+      ui.typingIndicator.hidden = false;
+      if (stuckToBottom) scrollToBottom();
+    }
+  }
+
+  var typingSignalTimer = null;
+  var isTypingBroadcasted = false;
+
+  function sendTypingSignal() {
+    if (!state.channel || !state.room || !state.user) return;
+    if (!isTypingBroadcasted) {
+      isTypingBroadcasted = true;
+      try {
+        state.channel.send({
+          type: 'broadcast',
+          event: 'typing',
+          payload: { user_id: state.user.id, name: state.name }
+        });
+      } catch (e) {}
+    }
+    clearTimeout(typingSignalTimer);
+    typingSignalTimer = setTimeout(function () {
+      stopTypingSignal();
+    }, 2800);
+  }
+
+  function stopTypingSignal() {
+    clearTimeout(typingSignalTimer);
+    if (isTypingBroadcasted && state.channel && state.room && state.user) {
+      isTypingBroadcasted = false;
+      try {
+        state.channel.send({
+          type: 'broadcast',
+          event: 'stop_typing',
+          payload: { user_id: state.user.id }
+        });
+      } catch (e) {}
+    }
+  }
+
+  var readAckTimer = null;
+  function sendReadAck() {
+    if (!state.channel || !state.room || !state.user) return;
+    clearTimeout(readAckTimer);
+    readAckTimer = setTimeout(function () {
+      if (state.channel && state.ready) {
+        try {
+          state.channel.send({
+            type: 'broadcast',
+            event: 'read_ack',
+            payload: { reader_id: state.user.id, up_to: Date.now() }
+          });
+        } catch (e) {}
+      }
+    }, 300);
+  }
+
+  function handleReadAck(upTo) {
+    if (!upTo) return;
+    state.lastReadAckTs = Math.max(state.lastReadAckTs || 0, upTo);
+    var hadChange = false;
+    state.msgs.forEach(function (m) {
+      if (state.user && m.user_id === state.user.id && m.ts <= upTo && !m.readByPeers) {
+        m.readByPeers = true;
+        hadChange = true;
+      }
+    });
+    if (hadChange) {
+      render('auto');
+    }
   }
 
   function setConnected(ok) {
@@ -727,6 +996,21 @@
     .on('broadcast', { event: 'refresh_feed' }, function () {
       catchUp();
     })
+    .on('broadcast', { event: 'typing' }, function (payload) {
+      if (payload && payload.payload && payload.payload.user_id !== (state.user && state.user.id)) {
+        handlePeerTyping(payload.payload.user_id, payload.payload.name);
+      }
+    })
+    .on('broadcast', { event: 'stop_typing' }, function (payload) {
+      if (payload && payload.payload) {
+        handlePeerStopTyping(payload.payload.user_id);
+      }
+    })
+    .on('broadcast', { event: 'read_ack' }, function (payload) {
+      if (payload && payload.payload && payload.payload.reader_id !== (state.user && state.user.id)) {
+        handleReadAck(payload.payload.up_to);
+      }
+    })
     // 2. Database postgres_changes fallback (filtered in JavaScript to avoid walrus filter bugs)
     .on('postgres_changes',
       { event: 'INSERT', schema: 'public', table: 'messages' },
@@ -828,7 +1112,18 @@
     ui.input.style.height = 'auto';
     ui.input.style.height = Math.min(ui.input.scrollHeight + 2, 130) + 'px';
   }
-  ui.input.addEventListener('input', updateComposer);
+  ui.input.addEventListener('input', function () {
+    updateComposer();
+    if (ui.input.value.trim().length > 0) {
+      sendTypingSignal();
+    } else {
+      stopTypingSignal();
+    }
+  });
+
+  ui.input.addEventListener('blur', function () {
+    stopTypingSignal();
+  });
 
   ui.input.addEventListener('keydown', function (e) {
     if (e.key === 'Enter' && !e.shiftKey && !e.isComposing) {
@@ -839,6 +1134,7 @@
 
   ui.composer.addEventListener('submit', function (e) {
     e.preventDefault();
+    stopTypingSignal();
     var text = ui.input.value.trim();
     if (!text || text.length > MAX_LEN || !state.user) return;
     var m = {
@@ -919,9 +1215,16 @@
     render('auto');
     try {
       if (m.blob && !m.uploaded) await uploadPhoto(m);
+
+      var payloadContent = m.content || '';
+      if (state.cryptoKey && payloadContent) {
+        payloadContent = await E2EE.encryptText(state.cryptoKey, payloadContent);
+        decryptedCache.set(payloadContent, m.content);
+      }
+
       var res = await sb.from('messages')
         .insert({ id: m.id, room_id: state.room, display_name: m.display_name,
-                  content: m.content, image_path: m.image_path || null })
+                  content: payloadContent, image_path: m.image_path || null })
         .select(COLUMNS)
         .single();
 
@@ -934,10 +1237,13 @@
       // Instant broadcast to all other systems/devices in this room over WebSocket
       if (res.data && state.channel) {
         try {
+          var broadcastRow = Object.assign({}, res.data, {
+            content: payloadContent
+          });
           state.channel.send({
             type: 'broadcast',
             event: 'new_message',
-            payload: res.data
+            payload: broadcastRow
           });
           state.channel.send({
             type: 'broadcast',
@@ -1818,6 +2124,9 @@
   }
 
   function leaveChat() {
+    stopTypingSignal();
+    activeTypers = new Map();
+    updateTypingUI();
     var ch = state.channel;
     state.channel = null;
     if (ch) {
@@ -1826,6 +2135,8 @@
     }
     state.msgs = new Map();
     state.ready = false;
+    state.cryptoKey = null;
+    if (ui.e2eeBadge) ui.e2eeBadge.hidden = true;
   }
 
   async function enterChat() {
@@ -1834,6 +2145,18 @@
     if (ui.roomsBtn) ui.roomsBtn.hidden = !PRIVATE_ROOMS;
     if (ui.deleteCurrentRoomBtn) {
       ui.deleteCurrentRoomBtn.hidden = !PRIVATE_ROOMS || state.room === 'general' || state.room === DEFAULT_ROOM;
+    }
+
+    activeTypers = new Map();
+    updateTypingUI();
+
+    // Derive End-to-End Encryption Key for private rooms (§Feature 1)
+    if (state.room && state.room !== 'general' && state.roomKey) {
+      state.cryptoKey = await E2EE.deriveRoomKey(state.room, state.roomKey);
+      if (ui.e2eeBadge) ui.e2eeBadge.hidden = !state.cryptoKey;
+    } else {
+      state.cryptoKey = null;
+      if (ui.e2eeBadge) ui.e2eeBadge.hidden = true;
     }
 
     var savedCleared = load('linkchat.clearedAt_' + state.room);
