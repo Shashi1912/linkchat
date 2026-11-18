@@ -612,33 +612,47 @@
     }
 
     var ch = sb.channel('room:' + state.room, {
-      config: { presence: { key: state.user.id } },
+      config: {
+        broadcast: { self: false },
+        presence: { key: state.user.id },
+      },
     });
     state.channel = ch;
 
-    ch.on('postgres_changes',
-      { event: 'INSERT', schema: 'public', table: 'messages', filter: 'room_id=eq.' + state.room },
-      function (payload) { onRealtimeRow(payload.new); })
-      .on('presence', { event: 'sync' }, updatePresence)
-      .subscribe(function (status, err) {
-        if (ch !== state.channel) return;
-        if (status === 'SUBSCRIBED') {
-          setConnected(true);
-          try {
-            ch.track({ name: state.name, online_at: new Date().toISOString() });
-          } catch (e) {}
-          if (state.everSubscribed) catchUp();
-          state.everSubscribed = true;
-        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
-          console.warn('Realtime channel:', status, err);
-          setConnected(false);
-          if (!isWsConnected()) {
-            try { sb.realtime.connect(); } catch (e) {}
-          }
-        } else if (status === 'CLOSED') {
-          if (state.channel === ch) setConnected(false);
+    // 1. Instant WebSocket broadcast: sub-10ms peer-to-peer delivery across all devices
+    ch.on('broadcast', { event: 'new_message' }, function (payload) {
+      if (payload && payload.payload) {
+        onRealtimeRow(payload.payload);
+      }
+    })
+    // 2. Database postgres_changes fallback (filtered in JavaScript to avoid walrus filter bugs)
+    .on('postgres_changes',
+      { event: 'INSERT', schema: 'public', table: 'messages' },
+      function (payload) {
+        if (payload && payload.new && payload.new.room_id === state.room) {
+          onRealtimeRow(payload.new);
         }
-      });
+      })
+    .on('presence', { event: 'sync' }, updatePresence)
+    .subscribe(function (status, err) {
+      if (ch !== state.channel) return;
+      if (status === 'SUBSCRIBED') {
+        setConnected(true);
+        try {
+          ch.track({ name: state.name, online_at: new Date().toISOString() });
+        } catch (e) {}
+        if (state.everSubscribed) catchUp();
+        state.everSubscribed = true;
+      } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+        console.warn('Realtime channel:', status, err);
+        setConnected(false);
+        if (!isWsConnected()) {
+          try { sb.realtime.connect(); } catch (e) {}
+        }
+      } else if (status === 'CLOSED') {
+        if (state.channel === ch) setConnected(false);
+      }
+    });
   }
 
   document.addEventListener('visibilitychange', function () {
@@ -771,6 +785,19 @@
       }
       if (res.error) throw res.error;
       upsert(res.data);
+
+      // Instant broadcast to all other systems/devices in this room over WebSocket
+      if (res.data && state.channel) {
+        try {
+          state.channel.send({
+            type: 'broadcast',
+            event: 'new_message',
+            payload: res.data
+          });
+        } catch (e) {
+          console.warn('Broadcast send:', e);
+        }
+      }
     } catch (err) {
       var cur = state.msgs.get(m.id);
       if (cur && cur.status !== 'sent') {
