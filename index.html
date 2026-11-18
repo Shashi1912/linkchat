@@ -6,7 +6,7 @@
   <title>LinkChat</title>
   <meta name="description" content="Instant, secure real-time messaging inspired by Apple design." />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='7' fill='%23007aff'/%3E%3Cpath d='M7 8.5h10M7 12.5h6' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E" />
-  <link rel="stylesheet" href="style.css?v=2.4" />
+  <link rel="stylesheet" href="style.css?v=2.5" />
   <script>
     // Apply saved theme before paint (prevents dark/light flash)
     try {
@@ -53,33 +53,35 @@
           </svg>
         </div>
         <h2>Choose a Room</h2>
-        <p class="subtitle">Join public community chat or choose a private room option.</p>
+        <div class="user-pill-row">
+          <span>Signed in as <strong id="picker-name">User</strong></span>
+          <button id="change-name-btn" type="button" class="btn-apple-text-sm">Change Name</button>
+        </div>
       </div>
 
-      <!-- Tile 1: General Community Chat Hero Tile (1-Tap Instant Join) -->
-      <div class="apple-tile-hero" id="general-tile" role="button" tabindex="0" title="Tap to enter General Chat">
-        <div class="tile-hero-icon">
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>
-          </svg>
-        </div>
-        <div class="tile-hero-text">
-          <div class="tile-hero-title-row">
-            <strong>General Chat</strong>
-            <span class="col-pill">PUBLIC</span>
+      <!-- Active & Created Rooms Section (All at one place!) -->
+      <div class="rooms-directory-box">
+        <div class="section-title-bar">
+          <div class="section-title-left">
+            <span class="col-pill">AVAILABLE ROOMS</span>
+            <h3>Active & Created Rooms</h3>
           </div>
-          <small>Open community room • Instant 1-tap entry</small>
+          <button id="refresh-rooms-btn" type="button" class="btn-icon-subtle" title="Refresh room list" aria-label="Refresh room list">
+            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="23 4 23 10 17 10"></polyline>
+              <polyline points="1 20 1 14 7 14"></polyline>
+              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+            </svg>
+          </button>
         </div>
-        <button id="general-btn" type="button" class="btn-tile-action" aria-label="Enter General Chat">
-          <span>Enter</span>
-          <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <polyline points="9 18 15 12 9 6"></polyline>
-          </svg>
-        </button>
+
+        <div id="rooms-list-container" class="rooms-directory-grid">
+          <div class="rooms-loading">Loading rooms…</div>
+        </div>
       </div>
 
       <div class="tiles-section-divider">
-        <span>OR PRIVATE ROOM TILES</span>
+        <span>OR CREATE / JOIN BY ID</span>
       </div>
 
       <!-- Side-by-side Mobile Action Tiles (Switches between Join / Create on mobile) -->
@@ -346,6 +348,30 @@
     </div>
   </div>
 
+  <!-- Apple Modal Dialog for Private Room Access Key Prompt -->
+  <div id="key-modal" class="apple-modal-scrim" hidden>
+    <div class="apple-modal-card" role="dialog" aria-modal="true" aria-labelledby="key-modal-title">
+      <div class="apple-modal-icon-wrap lock">
+        <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+          <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+        </svg>
+      </div>
+      <h3 id="key-modal-title">Enter Access Key</h3>
+      <p id="key-modal-desc" class="apple-modal-desc">This room is private. Enter key to join.</p>
+      <form id="key-modal-form" style="width: 100%;" novalidate>
+        <div class="input-group" style="margin-bottom: 12px;">
+          <input id="key-modal-input" type="password" maxlength="64" placeholder="Access key" required autocomplete="current-password" />
+        </div>
+        <p id="key-modal-error" class="form-error" role="alert" style="margin-bottom: 12px;"></p>
+        <div class="apple-modal-actions">
+          <button id="key-modal-confirm-btn" type="submit" class="btn-apple-primary" style="width: 100%;">Join Room</button>
+          <button id="key-modal-cancel-btn" type="button" class="btn-apple-cancel">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Setup Screen -->
   <main id="setup" class="join" hidden>
     <div class="join-card">
@@ -360,6 +386,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
   <script src="config.js"></script>
-  <script src="app.js?v=2.4"></script>
+  <script src="app.js?v=2.5"></script>
 </body>
 </html>

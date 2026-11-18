@@ -594,34 +594,12 @@
     ui.online.hidden = keys.length === 0;
   }
 
-  var stuckConnectingTimer = null;
-
   function setConnected(ok) {
     ui.conn.hidden = ok;
     if (!ok) {
       ui.online.hidden = true;
       ui.onlineList.hidden = true;
       ui.online.setAttribute('aria-expanded', 'false');
-
-      // Auto-recover: if stuck on Connecting... for > 6s, silent auto-refresh website
-      if (!stuckConnectingTimer) {
-        stuckConnectingTimer = setTimeout(function () {
-          stuckConnectingTimer = null;
-          if (!isWsConnected() && state.ready && state.room) {
-            console.log('Connection stuck, silently auto-refreshing website…');
-            if (!ui.input || ui.input.value.trim().length === 0) {
-              window.location.reload();
-            } else {
-              subscribe();
-            }
-          }
-        }, 6000);
-      }
-    } else {
-      if (stuckConnectingTimer) {
-        clearTimeout(stuckConnectingTimer);
-        stuckConnectingTimer = null;
-      }
     }
   }
 
@@ -767,29 +745,12 @@
     }
   }, 8000);
 
-  // Silent background auto-refresh: polls every 2.5 seconds to guarantee 100% sync across all systems
+  // Silent background catch-up: pulls new messages every 3s without reloading the page
   setInterval(function () {
     if (state.ready && state.room) {
       catchUp();
     }
-  }, 2500);
-
-  // Silent Website Version Watchdog: Auto-refreshes to latest code when a new build is deployed
-  var CURRENT_BUILD = '2026.11.18.02';
-  setInterval(async function () {
-    try {
-      var r = await fetch('version.json?_t=' + Date.now(), { cache: 'no-store' });
-      if (r.ok) {
-        var d = await r.json();
-        if (d && d.build && d.build !== CURRENT_BUILD) {
-          console.log('New build detected (' + d.build + '), auto-reloading website…');
-          if (!ui.input || ui.input.value.trim().length === 0) {
-            window.location.reload();
-          }
-        }
-      }
-    } catch (e) {}
-  }, 25000);
+  }, 3000);
 
   // ---------- Composer & Sending ----------
   function updateComposer() {
@@ -1053,6 +1014,7 @@
     store(ROOM_KEY, roomId);
     store(ROOM_NAME_KEY, state.roomDisplayName);
     store(ROOM_KEY_PASS, key);
+    store('linkchat.roomKey_' + roomId, key);
     enterChat();
   }
 
@@ -1109,12 +1071,165 @@
         store(ROOM_KEY, roomId);
         store(ROOM_NAME_KEY, roomName);
         store(ROOM_KEY_PASS, key);
+        store('linkchat.roomKey_' + roomId, key);
         enterChat();
       } catch (err) {
         ui.createRoomError.textContent = friendlyError(err);
         ui.createRoomBtn.disabled = false;
         ui.createRoomBtn.textContent = 'Create Room';
       }
+    });
+  }
+
+  function escapeHtml(str) {
+    var div = document.createElement('div');
+    div.textContent = str || '';
+    return div.innerHTML;
+  }
+
+  async function loadRoomsList() {
+    var container = $('rooms-list-container');
+    if (!container) return;
+    container.innerHTML = '<div class="rooms-loading">Loading active rooms…</div>';
+
+    var rooms = [];
+    try {
+      var res = await sb.from('rooms').select('id, name, created_at').order('created_at', { ascending: false });
+      if (!res.error && res.data) {
+        rooms = res.data;
+      }
+    } catch (e) {
+      console.warn('Could not load rooms:', e);
+    }
+    renderRoomsDirectory(rooms);
+  }
+
+  function renderRoomsDirectory(rooms) {
+    var container = $('rooms-list-container');
+    if (!container) return;
+    container.innerHTML = '';
+
+    // 1. General Community Room (Public • Open to all)
+    var genTile = document.createElement('button');
+    genTile.type = 'button';
+    genTile.className = 'room-tile-card';
+    genTile.innerHTML =
+      '<div class="room-tile-avatar general">' +
+        '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+          '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>' +
+        '</svg>' +
+      '</div>' +
+      '<div class="room-tile-meta">' +
+        '<strong>General Chat</strong>' +
+        '<small>Public community room • No key needed</small>' +
+      '</div>' +
+      '<span class="room-tile-badge public">OPEN</span>';
+    genTile.onclick = function () { joinGeneral(); };
+    container.appendChild(genTile);
+
+    // 2. Created & Active Rooms
+    if (rooms && rooms.length) {
+      rooms.forEach(function (r) {
+        var card = document.createElement('button');
+        card.type = 'button';
+        card.className = 'room-tile-card';
+        var initial = (r.name || r.id || 'R').charAt(0).toUpperCase();
+        var hasKey = Boolean(load('linkchat.roomKey_' + r.id));
+        card.innerHTML =
+          '<div class="room-tile-avatar private">' + escapeHtml(initial) + '</div>' +
+          '<div class="room-tile-meta">' +
+            '<strong>' + escapeHtml(r.name || r.id) + '</strong>' +
+            '<small>#' + escapeHtml(r.id) + '</small>' +
+          '</div>' +
+          (hasKey
+            ? '<span class="room-tile-badge public">ENTER</span>'
+            : '<span class="room-tile-badge locked">🔒 KEY</span>');
+        card.onclick = function () {
+          handleRoomTileClick(r.id, r.name || r.id);
+        };
+        container.appendChild(card);
+      });
+    }
+  }
+
+  function handleRoomTileClick(roomId, roomName) {
+    var savedKey = load('linkchat.roomKey_' + roomId);
+    if (savedKey) {
+      toast('Entering ' + roomName + '…');
+      joinPrivateRoom(roomId, savedKey).catch(function () {
+        openKeyModal(roomId, roomName);
+      });
+    } else {
+      openKeyModal(roomId, roomName);
+    }
+  }
+
+  var pendingKeyRoomId = null;
+  function openKeyModal(roomId, roomName) {
+    pendingKeyRoomId = roomId;
+    var modal = $('key-modal');
+    var title = $('key-modal-title');
+    var desc = $('key-modal-desc');
+    var input = $('key-modal-input');
+    var err = $('key-modal-error');
+    if (title) title.textContent = 'Join ' + (roomName || roomId);
+    if (desc) desc.textContent = 'Enter the access key for #' + roomId + ' to enter.';
+    if (input) input.value = '';
+    if (err) err.textContent = '';
+    if (modal) modal.hidden = false;
+    if (input) setTimeout(function () { input.focus(); }, 100);
+  }
+
+  function closeKeyModal() {
+    var modal = $('key-modal');
+    if (modal) modal.hidden = true;
+    pendingKeyRoomId = null;
+  }
+
+  var keyModalForm = $('key-modal-form');
+  if (keyModalForm) {
+    keyModalForm.addEventListener('submit', async function (e) {
+      e.preventDefault();
+      var keyInput = $('key-modal-input');
+      var err = $('key-modal-error');
+      var confirmBtn = $('key-modal-confirm-btn');
+      var key = (keyInput && keyInput.value || '').trim();
+      if (!key) {
+        if (err) err.textContent = 'Enter the access key.';
+        return;
+      }
+      if (!pendingKeyRoomId) return;
+
+      if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = 'Joining…'; }
+      try {
+        await joinPrivateRoom(pendingKeyRoomId, key);
+        closeKeyModal();
+      } catch (err) {
+        if (err) err.textContent = friendlyError(err);
+      } finally {
+        if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = 'Join Room'; }
+      }
+    });
+  }
+
+  var keyModalCancel = $('key-modal-cancel-btn');
+  if (keyModalCancel) {
+    keyModalCancel.addEventListener('click', closeKeyModal);
+  }
+
+  var refreshRoomsBtn = $('refresh-rooms-btn');
+  if (refreshRoomsBtn) {
+    refreshRoomsBtn.addEventListener('click', function () {
+      loadRoomsList();
+    });
+  }
+
+  var changeNameBtn = $('change-name-btn');
+  if (changeNameBtn) {
+    changeNameBtn.addEventListener('click', function () {
+      store(NAME_KEY, null);
+      state.name = '';
+      showJoin('');
     });
   }
 
@@ -1154,6 +1269,9 @@
     if (ui.createRoomError) ui.createRoomError.textContent = '';
     if (ui.createRoomBtn) { ui.createRoomBtn.disabled = false; ui.createRoomBtn.textContent = 'Create & Join'; }
 
+    var pName = $('picker-name');
+    if (pName) pName.textContent = state.name || 'User';
+
     var params = new URLSearchParams(window.location.search);
     var urlRoom = params.get('room');
     var urlKey = params.get('key');
@@ -1167,6 +1285,7 @@
       if (ui.colCreate) ui.colCreate.removeAttribute('data-tab-hidden');
     }
 
+    loadRoomsList();
     show('rooms');
   }
 
@@ -1333,15 +1452,8 @@
 
       if (urlRoom) {
         await tryAutoJoinFromUrl();
-      } else if (savedRoom) {
-        state.room = savedRoom;
-        state.roomDisplayName = savedRoomName || savedRoom;
-        state.roomKey = savedRoomKey || '';
-        enterChat();
-      } else if (PRIVATE_ROOMS) {
-        showRoomPicker();
       } else {
-        joinGeneral();
+        showRoomPicker();
       }
     } else {
       showJoin(saved);
