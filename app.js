@@ -546,14 +546,25 @@
   ui.olderBtn.addEventListener('click', loadOlder);
 
   async function catchUp() {
+    if (!state.ready || !state.room) return;
     var since = newestRaw();
-    if (!since || !state.ready) return;
     try {
-      var res = await baseQuery().gt('created_at', since)
-        .order('created_at', { ascending: true }).limit(500);
-      if (!res.error && res.data.length) {
-        res.data.forEach(upsert);
-        render('auto');
+      var q = baseQuery();
+      if (since) {
+        q = q.gt('created_at', since);
+      } else if (state.clearedAt) {
+        q = q.gt('created_at', new Date(state.clearedAt).toISOString());
+      }
+      var res = await q.order('created_at', { ascending: true }).limit(200);
+      if (!res.error && res.data && res.data.length) {
+        var hadNew = false;
+        res.data.forEach(function (row) {
+          if (!state.msgs.has(row.id)) {
+            hadNew = true;
+            onRealtimeRow(row);
+          }
+        });
+        if (hadNew) render('auto');
       }
     } catch (e) {}
   }
@@ -583,12 +594,34 @@
     ui.online.hidden = keys.length === 0;
   }
 
+  var stuckConnectingTimer = null;
+
   function setConnected(ok) {
     ui.conn.hidden = ok;
     if (!ok) {
       ui.online.hidden = true;
       ui.onlineList.hidden = true;
       ui.online.setAttribute('aria-expanded', 'false');
+
+      // Auto-recover: if stuck on Connecting... for > 6s, silent auto-refresh website
+      if (!stuckConnectingTimer) {
+        stuckConnectingTimer = setTimeout(function () {
+          stuckConnectingTimer = null;
+          if (!isWsConnected() && state.ready && state.room) {
+            console.log('Connection stuck, silently auto-refreshing website…');
+            if (!ui.input || ui.input.value.trim().length === 0) {
+              window.location.reload();
+            } else {
+              subscribe();
+            }
+          }
+        }, 6000);
+      }
+    } else {
+      if (stuckConnectingTimer) {
+        clearTimeout(stuckConnectingTimer);
+        stuckConnectingTimer = null;
+      }
     }
   }
 
@@ -665,6 +698,9 @@
         onRealtimeRow(payload.payload);
       }
     })
+    .on('broadcast', { event: 'refresh_feed' }, function () {
+      catchUp();
+    })
     // 2. Database postgres_changes fallback (filtered in JavaScript to avoid walrus filter bugs)
     .on('postgres_changes',
       { event: 'INSERT', schema: 'public', table: 'messages' },
@@ -729,7 +765,31 @@
         scheduleReconnect();
       }
     }
-  }, 10000);
+  }, 8000);
+
+  // Silent background auto-refresh: polls every 2.5 seconds to guarantee 100% sync across all systems
+  setInterval(function () {
+    if (state.ready && state.room) {
+      catchUp();
+    }
+  }, 2500);
+
+  // Silent Website Version Watchdog: Auto-refreshes to latest code when a new build is deployed
+  var CURRENT_BUILD = '2026.11.18.02';
+  setInterval(async function () {
+    try {
+      var r = await fetch('version.json?_t=' + Date.now(), { cache: 'no-store' });
+      if (r.ok) {
+        var d = await r.json();
+        if (d && d.build && d.build !== CURRENT_BUILD) {
+          console.log('New build detected (' + d.build + '), auto-reloading website…');
+          if (!ui.input || ui.input.value.trim().length === 0) {
+            window.location.reload();
+          }
+        }
+      }
+    } catch (e) {}
+  }, 25000);
 
   // ---------- Composer & Sending ----------
   function updateComposer() {
@@ -852,10 +912,18 @@
             event: 'new_message',
             payload: res.data
           });
+          state.channel.send({
+            type: 'broadcast',
+            event: 'refresh_feed',
+            payload: {}
+          });
         } catch (e) {
           console.warn('Broadcast send:', e);
         }
       }
+
+      // Immediately silent refresh messages from server on every send
+      catchUp();
     } catch (err) {
       var cur = state.msgs.get(m.id);
       if (cur && cur.status !== 'sent') {
