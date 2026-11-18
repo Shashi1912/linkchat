@@ -4,20 +4,19 @@
   'use strict';
 
   var cfg = window.LINKCHAT_CONFIG || {};
-  var ROOM = cfg.DEFAULT_ROOM_ID || cfg.ROOM_ID || 'general';
-  var ROOM_NAME = cfg.DEFAULT_ROOM_NAME || cfg.ROOM_NAME || 'General Chat';
+  var DEFAULT_ROOM = cfg.DEFAULT_ROOM_ID || cfg.ROOM_ID || 'general';
+  var DEFAULT_ROOM_NAME = cfg.DEFAULT_ROOM_NAME || cfg.ROOM_NAME || 'General Chat';
   var PRIVATE_ROOMS = cfg.ENABLE_PRIVATE_ROOMS !== false;
   var PAGE_SIZE = 50;
   var MAX_LEN = 1000;
   var NAME_KEY = 'linkchat.name';
   var ROOM_KEY = 'linkchat.room';
   var ROOM_NAME_KEY = 'linkchat.roomName';
+  var ROOM_KEY_PASS = 'linkchat.roomKey';
   var THEME_KEY = 'linkchat.theme';
   var BUCKET = 'chat-images';
   var PHOTO_MAX_PX = 1600;    // photos are shrunk to this size before upload
   var COLUMNS = 'id, room_id, user_id, display_name, content, image_path, created_at';
-  var RECONNECT_DELAY = 3000;
-  var MAX_RECONNECT_DELAY = 30000;
 
   // ---------- DOM ----------
   function $(id) { return document.getElementById(id); }
@@ -72,7 +71,7 @@
     ui.toast.textContent = msg;
     ui.toast.classList.add('show');
     clearTimeout(toastTimer);
-    toastTimer = setTimeout(function () { ui.toast.classList.remove('show'); }, 2000);
+    toastTimer = setTimeout(function () { ui.toast.classList.remove('show'); }, 2500);
   }
 
   function nameColor(id) {
@@ -128,8 +127,9 @@
   var state = {
     user: null,
     name: '',
-    room: ROOM,
-    roomDisplayName: ROOM_NAME,
+    room: DEFAULT_ROOM,
+    roomDisplayName: DEFAULT_ROOM_NAME,
+    roomKey: '',
     msgs: new Map(),     // id -> message
     oldestRaw: null,     // created_at string of the oldest loaded message
     hasMore: false,
@@ -139,8 +139,6 @@
     channel: null,
     everSubscribed: false,
     seq: 0,
-    reconnectDelay: RECONNECT_DELAY,
-    reconnectTimer: null,
   };
 
   function toMsg(row) {
@@ -157,10 +155,8 @@
     };
   }
 
-  // Insert or replace by id: this is what prevents duplicates between the
-  // optimistic copy, the insert response and the realtime event.
   function upsert(row) {
-    if (!row || row.room_id && row.room_id !== state.room) return;
+    if (!row || (row.room_id && row.room_id !== state.room)) return;
     var old = state.msgs.get(row.id);
     if (old && old.localUrl) URL.revokeObjectURL(old.localUrl);
     state.msgs.set(row.id, toMsg(row));
@@ -192,13 +188,10 @@
   }
   function scrollToBottom() { ui.messages.scrollTop = ui.messages.scrollHeight; }
 
-  // Photos load after the page draws and make the list taller. If the reader
-  // was at the bottom, keep them there.
   var stuckToBottom = true;
   ui.messages.addEventListener('scroll', function () { stuckToBottom = nearBottom(); });
   function onPhotoLoaded() { if (stuckToBottom) scrollToBottom(); }
 
-  // mode: 'auto' (stick to bottom only if already there), 'bottom', 'prepend'
   function render(mode) {
     var wasNear = nearBottom();
     var prevHeight = ui.messages.scrollHeight, prevTop = ui.messages.scrollTop;
@@ -324,47 +317,18 @@
   }
   ui.olderBtn.addEventListener('click', loadOlder);
 
-  // After a reconnect, fetch anything we missed while offline.
+  // After reconnect or visibility change, fetch anything missed
   async function catchUp() {
     var since = newestRaw();
     if (!since || !state.ready) return;
-    var res = await baseQuery().gt('created_at', since)
-      .order('created_at', { ascending: true }).limit(500);
-    if (!res.error && res.data.length) {
-      res.data.forEach(upsert);
-      render('auto');
-    }
-  }
-
-  // ---------- WebSocket health ----------
-  function isWsAlive() {
     try {
-      var conn = sb.realtime && sb.realtime.conn;
-      return conn && conn.readyState === WebSocket.OPEN;
-    } catch (e) { return false; }
-  }
-
-  function forceReconnect() {
-    clearTimeout(state.reconnectTimer);
-    var oldCh = state.channel;
-    state.channel = null;
-    if (oldCh) {
-      try { oldCh.untrack(); } catch (e) { /* ignore */ }
-      sb.removeChannel(oldCh);
-    }
-    subscribe();
-    catchUp();
-  }
-
-  function scheduleReconnect() {
-    clearTimeout(state.reconnectTimer);
-    state.reconnectTimer = setTimeout(function () {
-      if (!isWsAlive() && state.ready) {
-        forceReconnect();
+      var res = await baseQuery().gt('created_at', since)
+        .order('created_at', { ascending: true }).limit(500);
+      if (!res.error && res.data.length) {
+        res.data.forEach(upsert);
+        render('auto');
       }
-      // Exponential backoff, capped
-      state.reconnectDelay = Math.min(state.reconnectDelay * 1.5, MAX_RECONNECT_DELAY);
-    }, state.reconnectDelay);
+    } catch (e) { /* silent catch-up retry */ }
   }
 
   // ---------- Realtime + presence ----------
@@ -389,11 +353,11 @@
 
   function setConnected(ok) {
     ui.conn.hidden = ok;
-    if (ok) {
-      // Reset reconnect delay on successful connection
-      state.reconnectDelay = RECONNECT_DELAY;
+    if (!ok) {
+      ui.online.hidden = true;
+      ui.onlineList.hidden = true;
+      ui.online.setAttribute('aria-expanded', 'false');
     }
-    if (!ok) { ui.online.hidden = true; ui.onlineList.hidden = true; ui.online.setAttribute('aria-expanded', 'false'); }
   }
 
   ui.online.addEventListener('click', function () {
@@ -402,9 +366,21 @@
     ui.online.setAttribute('aria-expanded', String(show));
   });
 
+  function isWsConnected() {
+    try {
+      return Boolean(sb && sb.realtime && typeof sb.realtime.isConnected === 'function' && sb.realtime.isConnected());
+    } catch (e) { return false; }
+  }
+
   function subscribe() {
+    if (state.channel) {
+      try { state.channel.untrack(); } catch (e) {}
+      sb.removeChannel(state.channel);
+      state.channel = null;
+    }
+
     var ch = sb.channel('room:' + state.room, {
-      config: { presence: { key: state.user.id } }, // one entry per person, even with several tabs
+      config: { presence: { key: state.user.id } },
     });
     state.channel = ch;
 
@@ -412,50 +388,48 @@
       { event: 'INSERT', schema: 'public', table: 'messages', filter: 'room_id=eq.' + state.room },
       function (payload) { onRealtimeRow(payload.new); })
       .on('presence', { event: 'sync' }, updatePresence)
-      .subscribe(function (status) {
-        if (ch !== state.channel) return; // left the room meanwhile
+      .subscribe(function (status, err) {
+        if (ch !== state.channel) return; // channel changed
         if (status === 'SUBSCRIBED') {
           setConnected(true);
-          ch.track({ name: state.name, online_at: new Date().toISOString() });
+          try {
+            ch.track({ name: state.name, online_at: new Date().toISOString() });
+          } catch (e) {}
           if (state.everSubscribed) catchUp();
           state.everSubscribed = true;
-        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
+        } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
+          console.warn('Realtime channel:', status, err);
           setConnected(false);
-          // Auto-retry with exponential backoff
-          scheduleReconnect();
+          // Let Supabase Realtime retry reconnecting automatically.
+          // Wake up the socket transport if it went idle:
+          if (!isWsConnected()) {
+            try { sb.realtime.connect(); } catch (e) {}
+          }
+        } else if (status === 'CLOSED') {
+          if (state.channel === ch) setConnected(false);
         }
       });
   }
 
-  // Reconnect when network comes back
-  window.addEventListener('online', function () {
-    if (state.ready) {
-      if (!isWsAlive()) {
-        forceReconnect();
-      } else {
-        catchUp();
-      }
-    }
-  });
-
-  // Reconnect when tab becomes visible (browser throttles background WS)
+  // Wake socket and catch up on tab focus / mobile resume
   document.addEventListener('visibilitychange', function () {
     if (document.visibilityState === 'visible' && state.ready) {
-      if (!isWsAlive()) {
-        forceReconnect();
-      } else {
-        catchUp();
+      if (!isWsConnected()) {
+        try { sb.realtime.connect(); } catch (e) {}
       }
+      catchUp();
     }
   });
 
-  // Periodic heartbeat check: every 30s, verify WebSocket is alive
-  setInterval(function () {
-    if (state.ready && !isWsAlive()) {
-      setConnected(false);
-      scheduleReconnect();
+  // Wake socket when device reconnects to Wi-Fi / mobile data
+  window.addEventListener('online', function () {
+    if (state.ready) {
+      if (!isWsConnected()) {
+        try { sb.realtime.connect(); } catch (e) {}
+      }
+      catchUp();
     }
-  }, 30000);
+  });
 
   // ---------- Sending ----------
   function updateComposer() {
@@ -492,7 +466,6 @@
   });
 
   // ---------- Photos ----------
-  // Shrink the photo in the browser (keeps uploads ~200-400 KB) and make a JPEG.
   function shrinkPhoto(file) {
     return new Promise(function (resolve, reject) {
       var url = URL.createObjectURL(file);
@@ -504,7 +477,7 @@
         canvas.width = w;
         canvas.height = h;
         var ctx = canvas.getContext('2d');
-        ctx.fillStyle = '#fff'; // transparent PNGs get a white background
+        ctx.fillStyle = '#fff';
         ctx.fillRect(0, 0, w, h);
         ctx.drawImage(img, 0, 0, w, h);
         URL.revokeObjectURL(url);
@@ -547,7 +520,6 @@
     var up = await sb.storage.from(BUCKET).upload(m.image_path, m.blob, {
       contentType: 'image/jpeg', cacheControl: '31536000', upsert: false,
     });
-    // "already exists" means an earlier attempt uploaded it: that's fine.
     if (up.error && !/exists|duplicate/i.test(up.error.message || '')) throw up.error;
     m.uploaded = true;
   }
@@ -565,14 +537,13 @@
         .single();
 
       if (res.error && res.error.code === '23505') {
-        // Already saved by an earlier attempt: fetch the stored copy.
         res = await baseQuery().eq('id', m.id).single();
       }
       if (res.error) throw res.error;
       upsert(res.data);
     } catch (err) {
       var cur = state.msgs.get(m.id);
-      if (cur && cur.status !== 'sent') { // realtime may already have delivered it
+      if (cur && cur.status !== 'sent') {
         cur.status = 'failed';
         cur.error = friendlyError(err);
         toast(cur.error);
@@ -581,11 +552,14 @@
     render('auto');
   }
 
-  // ---------- Copy link ----------
+  // ---------- Copy link (smart share with key) ----------
   ui.copyBtn.addEventListener('click', async function () {
     var url = location.origin + location.pathname;
     if (state.room !== 'general') {
       url += '?room=' + encodeURIComponent(state.room);
+      if (state.roomKey) {
+        url += '&key=' + encodeURIComponent(state.roomKey);
+      }
     }
     try {
       await navigator.clipboard.writeText(url);
@@ -597,10 +571,10 @@
       document.execCommand('copy');
       ta.remove();
     }
-    toast('Link copied!');
+    toast(state.room === 'general' ? 'Chat link copied!' : 'Private room link copied (with key)!');
   });
 
-  // ---------- Room picker ----------
+  // ---------- Room picker & joining ----------
   if (ui.roomsBtn) {
     ui.roomsBtn.addEventListener('click', function () {
       leaveChat();
@@ -610,12 +584,34 @@
 
   if (ui.generalBtn) {
     ui.generalBtn.addEventListener('click', function () {
-      state.room = 'general';
-      state.roomDisplayName = ROOM_NAME;
-      store(ROOM_KEY, 'general');
-      store(ROOM_NAME_KEY, ROOM_NAME);
-      enterChat();
+      joinGeneral();
     });
+  }
+
+  function joinGeneral() {
+    state.room = 'general';
+    state.roomDisplayName = DEFAULT_ROOM_NAME;
+    state.roomKey = '';
+    store(ROOM_KEY, 'general');
+    store(ROOM_NAME_KEY, DEFAULT_ROOM_NAME);
+    store(ROOM_KEY_PASS, null);
+    enterChat();
+  }
+
+  async function joinPrivateRoom(roomId, key) {
+    var res = await sb.rpc('join_room', { p_room_id: roomId, p_access_key: key });
+    if (res.error) throw res.error;
+    var data = res.data;
+    if (!data.ok) {
+      throw new Error(data.error || 'Could not join room.');
+    }
+    state.room = roomId;
+    state.roomDisplayName = data.room_name || roomId;
+    state.roomKey = key;
+    store(ROOM_KEY, roomId);
+    store(ROOM_NAME_KEY, state.roomDisplayName);
+    store(ROOM_KEY_PASS, key);
+    enterChat();
   }
 
   if (ui.joinRoomForm) {
@@ -631,20 +627,7 @@
       ui.roomJoinBtn.disabled = true;
       ui.roomJoinBtn.textContent = 'Joining…';
       try {
-        var res = await sb.rpc('join_room', { p_room_id: roomId, p_access_key: key });
-        if (res.error) throw res.error;
-        var data = res.data;
-        if (!data.ok) {
-          ui.roomJoinError.textContent = data.error || 'Could not join room.';
-          ui.roomJoinBtn.disabled = false;
-          ui.roomJoinBtn.textContent = 'Join Private Room';
-          return;
-        }
-        state.room = roomId;
-        state.roomDisplayName = data.room_name || roomId;
-        store(ROOM_KEY, roomId);
-        store(ROOM_NAME_KEY, state.roomDisplayName);
-        enterChat();
+        await joinPrivateRoom(roomId, key);
       } catch (err) {
         ui.roomJoinError.textContent = friendlyError(err);
         ui.roomJoinBtn.disabled = false;
@@ -677,11 +660,13 @@
           ui.createRoomBtn.textContent = 'Create Room';
           return;
         }
-        toast('Room created! Share the ID and key with your friends.');
+        toast('Room created! Share the link or key with your friends.');
         state.room = roomId;
         state.roomDisplayName = roomName;
+        state.roomKey = key;
         store(ROOM_KEY, roomId);
         store(ROOM_NAME_KEY, roomName);
+        store(ROOM_KEY_PASS, key);
         enterChat();
       } catch (err) {
         ui.createRoomError.textContent = friendlyError(err);
@@ -717,7 +702,6 @@
   }
 
   function showRoomPicker() {
-    // Reset forms
     if (ui.roomIdInput) ui.roomIdInput.value = '';
     if (ui.roomKeyInput) ui.roomKeyInput.value = '';
     if (ui.roomJoinError) ui.roomJoinError.textContent = '';
@@ -728,12 +712,11 @@
     if (ui.createRoomError) ui.createRoomError.textContent = '';
     if (ui.createRoomBtn) { ui.createRoomBtn.disabled = false; ui.createRoomBtn.textContent = 'Create Room'; }
 
-    // Check if URL has a room parameter
     var params = new URLSearchParams(window.location.search);
     var urlRoom = params.get('room');
-    if (urlRoom && ui.roomIdInput) {
-      ui.roomIdInput.value = urlRoom;
-    }
+    var urlKey = params.get('key');
+    if (urlRoom && ui.roomIdInput) ui.roomIdInput.value = urlRoom;
+    if (urlKey && ui.roomKeyInput) ui.roomKeyInput.value = urlKey;
 
     show('rooms');
   }
@@ -741,9 +724,8 @@
   function leaveChat() {
     var ch = state.channel;
     state.channel = null;
-    clearTimeout(state.reconnectTimer);
     if (ch) {
-      try { ch.untrack(); } catch (e) { /* ignore */ }
+      try { ch.untrack(); } catch (e) {}
       sb.removeChannel(ch);
     }
     state.msgs = new Map();
@@ -760,15 +742,11 @@
     state.hasMore = false;
     state.oldestRaw = null;
     state.everSubscribed = false;
-    state.reconnectDelay = RECONNECT_DELAY;
-    clearTimeout(state.reconnectTimer);
     ui.feed.replaceChildren();
     ui.status.textContent = 'Loading messages…';
     setConnected(true);
     updateComposer();
 
-    // Subscribe first, then load history, then apply anything that arrived
-    // in between — so no message is missed during the initial load.
     subscribe();
     try {
       await loadLatest();
@@ -784,6 +762,33 @@
     ui.input.focus();
   }
 
+  // Auto-join helper for shared links with ?room=x&key=y
+  async function tryAutoJoinFromUrl() {
+    var params = new URLSearchParams(window.location.search);
+    var urlRoom = (params.get('room') || '').trim().toLowerCase();
+    var urlKey = (params.get('key') || '').trim();
+
+    if (!urlRoom || urlRoom === 'general') {
+      joinGeneral();
+      return true;
+    }
+
+    if (urlKey) {
+      try {
+        await joinPrivateRoom(urlRoom, urlKey);
+        return true;
+      } catch (e) {
+        showRoomPicker();
+        if (ui.roomJoinError) ui.roomJoinError.textContent = friendlyError(e);
+        return false;
+      }
+    }
+
+    // Has room ID in URL but no key provided
+    showRoomPicker();
+    return false;
+  }
+
   ui.joinForm.addEventListener('submit', async function (e) {
     e.preventDefault();
     var name = ui.nameInput.value.trim().replace(/\s+/g, ' ');
@@ -796,7 +801,7 @@
     ui.joinBtn.textContent = 'Joining…';
     try {
       var got = await sb.auth.getSession();
-      var session = got.data.session;
+      var session = got.data && got.data.session;
       if (!session) {
         var res = await sb.auth.signInAnonymously();
         if (res.error) throw res.error;
@@ -806,27 +811,20 @@
       state.name = name;
       store(NAME_KEY, name);
 
-      // Check URL for room param
       var params = new URLSearchParams(window.location.search);
       var urlRoom = params.get('room');
 
-      if (PRIVATE_ROOMS && !urlRoom) {
-        // Show room picker
-        showRoomPicker();
-      } else if (urlRoom) {
-        // Pre-fill room picker with the URL room
-        if (PRIVATE_ROOMS) {
-          showRoomPicker();
-        } else {
-          state.room = urlRoom;
-          state.roomDisplayName = urlRoom;
-          enterChat();
+      if (urlRoom) {
+        // Direct link provided in URL: try to auto-join
+        var joined = await tryAutoJoinFromUrl();
+        if (!joined) {
+          ui.joinBtn.disabled = false;
+          ui.joinBtn.textContent = 'Join Chat';
         }
+      } else if (PRIVATE_ROOMS) {
+        showRoomPicker();
       } else {
-        // Go straight to general chat
-        state.room = ROOM;
-        state.roomDisplayName = ROOM_NAME;
-        enterChat();
+        joinGeneral();
       }
     } catch (err) {
       ui.joinError.textContent = friendlyError(err);
@@ -840,6 +838,7 @@
     store(NAME_KEY, null);
     store(ROOM_KEY, null);
     store(ROOM_NAME_KEY, null);
+    store(ROOM_KEY_PASS, null);
     ui.onlineList.hidden = true;
     showJoin('');
   });
@@ -857,6 +856,7 @@
     var saved = load(NAME_KEY);
     var savedRoom = load(ROOM_KEY);
     var savedRoomName = load(ROOM_NAME_KEY);
+    var savedRoomKey = load(ROOM_KEY_PASS);
     var got = await sb.auth.getSession();
     var session = got.data && got.data.session;
 
@@ -864,24 +864,21 @@
       state.user = session.user;
       state.name = saved;
 
-      // Check URL for room param first
       var params = new URLSearchParams(window.location.search);
       var urlRoom = params.get('room');
 
-      if (urlRoom && PRIVATE_ROOMS) {
-        // URL has a room, show room picker with it pre-filled
-        showRoomPicker();
+      if (urlRoom) {
+        // Direct link provided in URL
+        await tryAutoJoinFromUrl();
       } else if (savedRoom) {
-        // Resume saved room
         state.room = savedRoom;
         state.roomDisplayName = savedRoomName || savedRoom;
+        state.roomKey = savedRoomKey || '';
         enterChat();
       } else if (PRIVATE_ROOMS) {
         showRoomPicker();
       } else {
-        state.room = ROOM;
-        state.roomDisplayName = ROOM_NAME;
-        enterChat();
+        joinGeneral();
       }
     } else {
       showJoin(saved);
