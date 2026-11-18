@@ -33,7 +33,10 @@
     newRoomName: $('new-room-name'), newRoomKey: $('new-room-key'),
     createRoomError: $('create-room-error'), createRoomBtn: $('create-room-btn'),
     roomBackBtn: $('room-back-btn'),
-    tabJoin: $('tab-join'), tabCreate: $('tab-create'),
+    toggleJoinFormBtn: $('toggle-join-form-btn'),
+    toggleCreateFormBtn: $('toggle-create-form-btn'),
+    closeJoinFormBtn: $('close-join-form-btn'),
+    closeCreateFormBtn: $('close-create-form-btn'),
     colJoin: $('col-join'), colCreate: $('col-create'),
     // Dynamic Island In-App Banner
     banner: $('in-app-banner'), bannerPill: $('banner-pill-btn'),
@@ -581,7 +584,10 @@
       }
       var res = await q.order('created_at', { ascending: true }).limit(200);
       if (!res.error) {
+        state.restHealthy = true;
         setConnected(true);
+      } else {
+        state.restHealthy = false;
       }
       if (!res.error && res.data && res.data.length) {
         var hadNew = false;
@@ -622,11 +628,17 @@
   }
 
   function setConnected(ok) {
-    ui.conn.hidden = ok;
-    if (!ok) {
-      ui.online.hidden = true;
-      ui.onlineList.hidden = true;
-      ui.online.setAttribute('aria-expanded', 'false');
+    if (ok) {
+      ui.conn.hidden = true;
+    } else {
+      if (state.restHealthy) {
+        ui.conn.hidden = true;
+      } else {
+        ui.conn.hidden = false;
+        ui.online.hidden = true;
+        ui.onlineList.hidden = true;
+        ui.online.setAttribute('aria-expanded', 'false');
+      }
     }
   }
 
@@ -746,11 +758,15 @@
         state.everSubscribed = true;
       } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
         console.warn('Realtime channel:', status, err);
-        setConnected(false);
+        if (!state.restHealthy) {
+          setConnected(false);
+        }
         scheduleReconnect();
       } else if (status === 'CLOSED') {
         if (state.channel === ch) {
-          setConnected(false);
+          if (!state.restHealthy) {
+            setConnected(false);
+          }
           scheduleReconnect();
         }
       }
@@ -1063,37 +1079,69 @@
     }
   }
 
-  // Mobile Segmented Switcher for Side-by-Side Dual Column
-  function setRoomTab(tab) {
-    if (!ui.colJoin || !ui.colCreate) return;
-    if (tab === 'join') {
-      ui.colJoin.removeAttribute('data-tab-hidden');
-      ui.colCreate.setAttribute('data-tab-hidden', 'true');
-      if (ui.tabJoin) {
-        ui.tabJoin.classList.add('active');
-        ui.tabJoin.setAttribute('aria-selected', 'true');
+  // Expandable Forms Handler (No text fields shown until clicked!)
+  function toggleSubform(type) {
+    var joinCol = ui.colJoin;
+    var createCol = ui.colCreate;
+    var joinBtn = ui.toggleJoinFormBtn;
+    var createBtn = ui.toggleCreateFormBtn;
+
+    if (type === 'join') {
+      var willOpen = joinCol ? joinCol.hidden : false;
+      if (joinCol) joinCol.hidden = !willOpen;
+      if (createCol) createCol.hidden = true;
+      if (joinBtn) {
+        joinBtn.classList.toggle('active', willOpen);
+        joinBtn.setAttribute('aria-expanded', String(willOpen));
       }
-      if (ui.tabCreate) {
-        ui.tabCreate.classList.remove('active');
-        ui.tabCreate.setAttribute('aria-selected', 'false');
+      if (createBtn) {
+        createBtn.classList.remove('active');
+        createBtn.setAttribute('aria-expanded', 'false');
+      }
+      if (willOpen && ui.roomIdInput) {
+        setTimeout(function () { ui.roomIdInput.focus(); }, 120);
+      }
+    } else if (type === 'create') {
+      var willOpen = createCol ? createCol.hidden : false;
+      if (createCol) createCol.hidden = !willOpen;
+      if (joinCol) joinCol.hidden = true;
+      if (createBtn) {
+        createBtn.classList.toggle('active', willOpen);
+        createBtn.setAttribute('aria-expanded', String(willOpen));
+      }
+      if (joinBtn) {
+        joinBtn.classList.remove('active');
+        joinBtn.setAttribute('aria-expanded', 'false');
+      }
+      if (willOpen && ui.newRoomId) {
+        setTimeout(function () { ui.newRoomId.focus(); }, 120);
       }
     } else {
-      ui.colCreate.removeAttribute('data-tab-hidden');
-      ui.colJoin.setAttribute('data-tab-hidden', 'true');
-      if (ui.tabCreate) {
-        ui.tabCreate.classList.add('active');
-        ui.tabCreate.setAttribute('aria-selected', 'true');
+      // Hide all forms
+      if (joinCol) joinCol.hidden = true;
+      if (createCol) createCol.hidden = true;
+      if (joinBtn) {
+        joinBtn.classList.remove('active');
+        joinBtn.setAttribute('aria-expanded', 'false');
       }
-      if (ui.tabJoin) {
-        ui.tabJoin.classList.remove('active');
-        ui.tabJoin.setAttribute('aria-selected', 'false');
+      if (createBtn) {
+        createBtn.classList.remove('active');
+        createBtn.setAttribute('aria-expanded', 'false');
       }
     }
   }
 
-  if (ui.tabJoin && ui.tabCreate) {
-    ui.tabJoin.addEventListener('click', function () { setRoomTab('join'); });
-    ui.tabCreate.addEventListener('click', function () { setRoomTab('create'); });
+  if (ui.toggleJoinFormBtn) {
+    ui.toggleJoinFormBtn.addEventListener('click', function () { toggleSubform('join'); });
+  }
+  if (ui.toggleCreateFormBtn) {
+    ui.toggleCreateFormBtn.addEventListener('click', function () { toggleSubform('create'); });
+  }
+  if (ui.closeJoinFormBtn) {
+    ui.closeJoinFormBtn.addEventListener('click', function () { toggleSubform('none'); });
+  }
+  if (ui.closeCreateFormBtn) {
+    ui.closeCreateFormBtn.addEventListener('click', function () { toggleSubform('none'); });
   }
 
   var generalTile = $('general-tile');
@@ -1743,11 +1791,10 @@
     if (urlRoom && ui.roomIdInput) ui.roomIdInput.value = urlRoom;
     if (urlKey && ui.roomKeyInput) ui.roomKeyInput.value = urlKey;
 
-    if (window.innerWidth <= 680) {
-      setRoomTab('join');
+    if (urlRoom && urlRoom !== 'general') {
+      toggleSubform('join');
     } else {
-      if (ui.colJoin) ui.colJoin.removeAttribute('data-tab-hidden');
-      if (ui.colCreate) ui.colCreate.removeAttribute('data-tab-hidden');
+      toggleSubform('none');
     }
 
     var savedMode = load('linkchat.roomViewMode') || 'dropdown';

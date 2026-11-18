@@ -6,7 +6,7 @@
   <title>LinkChat</title>
   <meta name="description" content="Instant, secure real-time messaging inspired by Apple design." />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='7' fill='%23007aff'/%3E%3Cpath d='M7 8.5h10M7 12.5h6' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E" />
-  <link rel="stylesheet" href="style.css?v=2.8" />
+  <link rel="stylesheet" href="style.css?v=3.0" />
   <script>
     // Apply saved theme before paint (prevents dark/light flash)
     try {
@@ -131,41 +131,51 @@
       </div>
 
       <div class="tiles-section-divider">
-        <span>OR CREATE / JOIN BY ID</span>
+        <span>OR JOIN / CREATE BY ID</span>
       </div>
 
-      <!-- Side-by-side Mobile Action Switcher (Switches between Join / Create on mobile) -->
-      <div class="apple-segmented-control" id="room-segmented" role="tablist" aria-label="Join or Create Room">
-        <button type="button" class="segment-tab active" id="tab-join" role="tab" aria-selected="true">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M21 2l-2 2m-1-1l-3 3m1 1l-2 2m-2-2l-4 4a5.5 5.5 0 1 1-7.78-7.78 5.5 5.5 0 0 1 7.78 0L17 5z"/>
+      <!-- Action Toggles (No text fields shown until clicked!) -->
+      <div class="apple-actions-row">
+        <button type="button" class="apple-action-btn" id="toggle-join-form-btn" aria-expanded="false" aria-controls="col-join">
+          <div class="action-btn-icon blue">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 2l-2 2m-1-1l-3 3m1 1l-2 2m-2-2l-4 4a5.5 5.5 0 1 1-7.78-7.78 5.5 5.5 0 0 1 7.78 0L17 5z"/>
+            </svg>
+          </div>
+          <span>Join by ID</span>
+          <svg class="action-chevron" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 12 15 18 9"/>
           </svg>
-          <span>Join Room</span>
         </button>
 
-        <button type="button" class="segment-tab" id="tab-create" role="tab" aria-selected="false">
-          <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-            <line x1="12" y1="5" x2="12" y2="19"></line>
-            <line x1="5" y1="12" x2="19" y2="12"></line>
-          </svg>
+        <button type="button" class="apple-action-btn" id="toggle-create-form-btn" aria-expanded="false" aria-controls="col-create">
+          <div class="action-btn-icon green">
+            <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+              <line x1="12" y1="5" x2="12" y2="19"></line>
+              <line x1="5" y1="12" x2="19" y2="12"></line>
+            </svg>
+          </div>
           <span>Create Room</span>
+          <svg class="action-chevron" viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="6 9 12 15 18 9"/>
+          </svg>
         </button>
       </div>
 
-      <!-- Side-by-Side Dual Tile Cards Grid -->
-      <div class="room-grid-layout">
-        <!-- Tile 1: Join Existing Private Room -->
-        <div class="room-grid-col room-tile-box" id="col-join">
-          <div class="tile-box-header">
-            <div class="tile-toggle-icon blue sm">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <path d="M21 2l-2 2m-1-1l-3 3m1 1l-2 2m-2-2l-4 4a5.5 5.5 0 1 1-7.78-7.78 5.5 5.5 0 0 1 7.78 0L17 5z"/>
-              </svg>
+      <!-- Expandable Forms (Hidden initially until clicked!) -->
+      <div class="expandable-forms-wrapper">
+        <!-- 1. Join Existing Private Room -->
+        <div class="room-expandable-card" id="col-join" hidden>
+          <div class="expandable-card-header">
+            <div class="expandable-header-title">
+              <div class="action-btn-icon blue sm">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                  <path d="M21 2l-2 2m-1-1l-3 3m1 1l-2 2m-2-2l-4 4a5.5 5.5 0 1 1-7.78-7.78 5.5 5.5 0 0 1 7.78 0L17 5z"/>
+                </svg>
+              </div>
+              <strong>Join Private Room</strong>
             </div>
-            <div>
-              <h3>Join Room</h3>
-              <p class="tile-desc">Enter existing room with access key.</p>
-            </div>
+            <button type="button" class="btn-close-subform" id="close-join-form-btn" aria-label="Close join form">✕</button>
           </div>
 
           <form id="join-room-form" class="room-subform" novalidate>
@@ -173,33 +183,32 @@
               <label for="room-id-input">Room ID</label>
               <input id="room-id-input" type="text" maxlength="40" placeholder="e.g. design-team" autocomplete="off" />
             </div>
-            <div class="input-group" style="margin-top: 10px;">
+            <div class="input-group" style="margin-top: 8px;">
               <label for="room-key-input">Access Key</label>
               <input id="room-key-input" type="password" maxlength="64" placeholder="Enter secret key" autocomplete="off" />
             </div>
             <p id="room-join-error" class="form-error" role="alert"></p>
-            <button id="room-join-btn" type="submit" class="btn-apple-primary btn-action-join">
-              <span>Join Private Room</span>
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <polyline points="9 18 15 12 9 6"></polyline>
-              </svg>
-            </button>
+            <div class="subform-actions">
+              <button id="room-join-btn" type="submit" class="btn-apple-primary btn-action-join">
+                <span>Join Room</span>
+              </button>
+            </div>
           </form>
         </div>
 
-        <!-- Tile 2: Create a Room -->
-        <div class="room-grid-col room-tile-box" id="col-create" data-tab-hidden="true">
-          <div class="tile-box-header">
-            <div class="tile-toggle-icon green sm">
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-              </svg>
+        <!-- 2. Create a Room -->
+        <div class="room-expandable-card" id="col-create" hidden>
+          <div class="expandable-card-header">
+            <div class="expandable-header-title">
+              <div class="action-btn-icon green sm">
+                <svg viewBox="0 0 24 24" width="13" height="13" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <line x1="12" y1="5" x2="12" y2="19"></line>
+                  <line x1="5" y1="12" x2="19" y2="12"></line>
+                </svg>
+              </div>
+              <strong>Create New Room</strong>
             </div>
-            <div>
-              <h3>Create Room</h3>
-              <p class="tile-desc">Create your own private room with access key.</p>
-            </div>
+            <button type="button" class="btn-close-subform" id="close-create-form-btn" aria-label="Close create form">✕</button>
           </div>
 
           <form id="create-room-form" class="room-subform" novalidate>
@@ -207,22 +216,20 @@
               <label for="new-room-id">Room ID</label>
               <input id="new-room-id" type="text" maxlength="40" placeholder="e.g. team-mars" autocomplete="off" />
             </div>
-            <div class="input-group" style="margin-top: 10px;">
+            <div class="input-group" style="margin-top: 8px;">
               <label for="new-room-name">Display Name</label>
               <input id="new-room-name" type="text" maxlength="60" placeholder="e.g. Mars Project Team" autocomplete="off" />
             </div>
-            <div class="input-group" style="margin-top: 10px;">
+            <div class="input-group" style="margin-top: 8px;">
               <label for="new-room-key">Access Key</label>
               <input id="new-room-key" type="text" maxlength="64" placeholder="Key required to enter" autocomplete="off" />
             </div>
             <p id="create-room-error" class="form-error" role="alert"></p>
-            <button id="create-room-btn" type="submit" class="btn-apple-primary btn-action-create">
-              <span>Create & Join Room</span>
-              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-                <line x1="12" y1="5" x2="12" y2="19"></line>
-                <line x1="5" y1="12" x2="19" y2="12"></line>
-              </svg>
-            </button>
+            <div class="subform-actions">
+              <button id="create-room-btn" type="submit" class="btn-apple-primary btn-action-create">
+                <span>Create & Join</span>
+              </button>
+            </div>
           </form>
         </div>
       </div>
@@ -462,6 +469,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
   <script src="config.js"></script>
-  <script src="app.js?v=2.8"></script>
+  <script src="app.js?v=3.0"></script>
 </body>
 </html>
