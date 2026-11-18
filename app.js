@@ -604,11 +604,51 @@
     } catch (e) { return false; }
   }
 
+  function syncRealtimeAuth(session) {
+    if (session && session.access_token && sb && sb.realtime && typeof sb.realtime.setAuth === 'function') {
+      try {
+        sb.realtime.setAuth(session.access_token);
+      } catch (e) {
+        console.warn('Realtime setAuth:', e);
+      }
+    }
+  }
+
+  function scheduleReconnect() {
+    if (!state.ready || !state.room) return;
+    if (state.reconnectTimer) return;
+
+    state.reconnectAttempts = (state.reconnectAttempts || 0) + 1;
+    var delay = Math.min(6000, 1500 * Math.pow(1.3, state.reconnectAttempts - 1));
+    console.log('Realtime reconnect scheduled in', Math.round(delay), 'ms (attempt', state.reconnectAttempts, ')');
+
+    state.reconnectTimer = setTimeout(function () {
+      state.reconnectTimer = null;
+      if (state.ready && state.room) {
+        if (!isWsConnected()) {
+          try { sb.realtime.connect(); } catch (e) {}
+        }
+        subscribe();
+      }
+    }, delay);
+  }
+
   function subscribe() {
+    if (!state.room || !state.user) return;
+
+    if (state.reconnectTimer) {
+      clearTimeout(state.reconnectTimer);
+      state.reconnectTimer = null;
+    }
+
     if (state.channel) {
       try { state.channel.untrack(); } catch (e) {}
-      sb.removeChannel(state.channel);
+      try { sb.removeChannel(state.channel); } catch (e) {}
       state.channel = null;
+    }
+
+    if (!isWsConnected()) {
+      try { sb.realtime.connect(); } catch (e) {}
     }
 
     var ch = sb.channel('room:' + state.room, {
@@ -637,6 +677,7 @@
     .subscribe(function (status, err) {
       if (ch !== state.channel) return;
       if (status === 'SUBSCRIBED') {
+        state.reconnectAttempts = 0;
         setConnected(true);
         try {
           ch.track({ name: state.name, online_at: new Date().toISOString() });
@@ -646,32 +687,49 @@
       } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT') {
         console.warn('Realtime channel:', status, err);
         setConnected(false);
-        if (!isWsConnected()) {
-          try { sb.realtime.connect(); } catch (e) {}
-        }
+        scheduleReconnect();
       } else if (status === 'CLOSED') {
-        if (state.channel === ch) setConnected(false);
+        if (state.channel === ch) {
+          setConnected(false);
+          scheduleReconnect();
+        }
       }
     });
   }
 
   document.addEventListener('visibilitychange', function () {
-    if (document.visibilityState === 'visible' && state.ready) {
-      if (!isWsConnected()) {
-        try { sb.realtime.connect(); } catch (e) {}
+    if (document.visibilityState === 'visible' && state.ready && state.room) {
+      if (!isWsConnected() || !state.channel || state.channel.state !== 'joined') {
+        if (!isWsConnected()) {
+          try { sb.realtime.connect(); } catch (e) {}
+        }
+        subscribe();
       }
       catchUp();
     }
   });
 
   window.addEventListener('online', function () {
-    if (state.ready) {
+    if (state.ready && state.room) {
       if (!isWsConnected()) {
         try { sb.realtime.connect(); } catch (e) {}
       }
+      subscribe();
       catchUp();
     }
   });
+
+  // Health check: auto-recover if socket or channel drops silently
+  setInterval(function () {
+    if (state.ready && state.room) {
+      var ok = isWsConnected() && state.channel && state.channel.state === 'joined';
+      if (!ok && !state.reconnectTimer) {
+        console.log('Realtime health check failed, resubscribing…');
+        setConnected(false);
+        scheduleReconnect();
+      }
+    }
+  }, 10000);
 
   // ---------- Composer & Sending ----------
   function updateComposer() {
@@ -1136,6 +1194,7 @@
         session = res.data.session;
       }
       state.user = session.user;
+      syncRealtimeAuth(session);
       state.name = name;
       store(NAME_KEY, name);
 
@@ -1180,12 +1239,22 @@
       },
     });
 
+    sb.auth.onAuthStateChange(function (event, session) {
+      if (session) {
+        state.user = session.user;
+        syncRealtimeAuth(session);
+      }
+    });
+
     var saved = load(NAME_KEY);
     var savedRoom = load(ROOM_KEY);
     var savedRoomName = load(ROOM_NAME_KEY);
     var savedRoomKey = load(ROOM_KEY_PASS);
     var got = await sb.auth.getSession();
     var session = got.data && got.data.session;
+    if (session) {
+      syncRealtimeAuth(session);
+    }
 
     if (session && saved) {
       state.user = session.user;

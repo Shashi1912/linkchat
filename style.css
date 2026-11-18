@@ -728,12 +728,14 @@ button:active, .room-btn-apple:active, .segment-tab:active {
 /* ---------- Chat Layout & Floating Chrome ---------- */
 .chat {
   position: relative;
+  height: 100%;
   height: 100dvh;
   display: flex;
   flex-direction: column;
   max-width: 920px;
   margin: 0 auto;
   background: var(--apple-bg);
+  overflow: hidden;
 }
 
 /* Translucent Frosted Glass Header (§12) */
@@ -1039,6 +1041,7 @@ button:active, .room-btn-apple:active, .segment-tab:active {
 
 /* ---------- Floating Frosted Composer (§12) ---------- */
 .composer-container {
+  flex: none;
   padding: 8px 16px;
   padding-bottom: max(8px, env(safe-area-inset-bottom));
   background: var(--apple-surface);
@@ -1046,6 +1049,7 @@ button:active, .room-btn-apple:active, .segment-tab:active {
   -webkit-backdrop-filter: var(--apple-blur);
   border-top: 1px solid var(--apple-border);
   box-shadow: 0 -1px 0 var(--apple-glass-border) inset;
+  z-index: 40;
 }
 
 .composer-apple {
