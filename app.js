@@ -42,11 +42,35 @@
     chat: $('chat'), setup: $('setup'), roomName: $('room-name'),
     online: $('online'), onlineCount: $('online-count'), onlineList: $('online-list'),
     conn: $('conn'), copyBtn: $('copy-btn'), roomsBtn: $('rooms-btn'),
+    deleteCurrentRoomBtn: $('delete-current-room-btn'),
     clearBtn: $('clear-btn'), clearModal: $('clear-modal'),
     clearConfirmBtn: $('clear-confirm-btn'), clearCancelBtn: $('clear-cancel-btn'),
     themeBtn: $('theme-btn'), themeIcon: $('theme-icon'),
     notifBtn: $('notif-btn'), notifDot: $('notif-status-dot'),
     leaveBtn: $('leave-btn'),
+    // Room Views & Apple Dropdown
+    viewDropdownBtn: $('view-dropdown-btn'),
+    viewTilesBtn: $('view-tiles-btn'),
+    roomsDropdownView: $('rooms-dropdown-view'),
+    roomsTilesView: $('rooms-tiles-view'),
+    dropdownTriggerBtn: $('dropdown-trigger-btn'),
+    dropdownTriggerAvatar: $('dropdown-trigger-avatar'),
+    dropdownTriggerName: $('dropdown-trigger-name'),
+    dropdownTriggerSub: $('dropdown-trigger-sub'),
+    dropdownPopover: $('dropdown-popover'),
+    dropdownItemsList: $('dropdown-items-list'),
+    dropdownEnterBtn: $('dropdown-enter-btn'),
+    dropdownDeleteBtn: $('dropdown-delete-btn'),
+    // Delete Room Modal
+    deleteRoomModal: $('delete-room-modal'),
+    deleteRoomTitle: $('delete-room-title'),
+    deleteRoomDesc: $('delete-room-desc'),
+    deleteRoomForm: $('delete-room-form'),
+    deleteKeyGroup: $('delete-key-group'),
+    deleteRoomKeyInput: $('delete-room-key-input'),
+    deleteRoomError: $('delete-room-error'),
+    deleteRoomConfirmBtn: $('delete-room-confirm-btn'),
+    deleteRoomCancelBtn: $('delete-room-cancel-btn'),
     // Messages
     messages: $('messages'), olderBtn: $('older-btn'), status: $('status'), feed: $('feed'),
     composer: $('composer'), input: $('msg-input'), sendBtn: $('send-btn'), counter: $('counter'),
@@ -556,6 +580,9 @@
         q = q.gt('created_at', new Date(state.clearedAt).toISOString());
       }
       var res = await q.order('created_at', { ascending: true }).limit(200);
+      if (!res.error) {
+        setConnected(true);
+      }
       if (!res.error && res.data && res.data.length) {
         var hadNew = false;
         res.data.forEach(function (row) {
@@ -736,14 +763,18 @@
   // Health check: auto-recover if socket or channel drops silently
   setInterval(function () {
     if (state.ready && state.room) {
-      var ok = isWsConnected() && state.channel && state.channel.state === 'joined';
+      var wsOk = isWsConnected();
+      var chState = state.channel ? state.channel.state : 'closed';
+      // If channel is joining, allow it time to complete without tearing down
+      if (chState === 'joining') return;
+
+      var ok = wsOk && chState === 'joined';
       if (!ok && !state.reconnectTimer) {
-        console.log('Realtime health check failed, resubscribing…');
-        setConnected(false);
+        console.log('Realtime health check notice: wsOk=' + wsOk + ', chState=' + chState + ', gently reconnecting…');
         scheduleReconnect();
       }
     }
-  }, 8000);
+  }, 10000);
 
   // Silent background catch-up: pulls new messages every 3s without reloading the page
   setInterval(function () {
@@ -1087,10 +1118,163 @@
     return div.innerHTML;
   }
 
+  // ---------- Room Views & Apple Dropdown ----------
+  var currentSelectedRoom = { id: 'general', name: 'General Chat', isPrivate: false };
+
+  function setRoomViewMode(mode) {
+    var isTiles = mode === 'tiles';
+    store('linkchat.roomViewMode', isTiles ? 'tiles' : 'dropdown');
+    if (ui.roomsTilesView) ui.roomsTilesView.hidden = !isTiles;
+    if (ui.roomsDropdownView) ui.roomsDropdownView.hidden = isTiles;
+    if (ui.viewTilesBtn) {
+      ui.viewTilesBtn.classList.toggle('active', isTiles);
+      ui.viewTilesBtn.setAttribute('aria-selected', String(isTiles));
+    }
+    if (ui.viewDropdownBtn) {
+      ui.viewDropdownBtn.classList.toggle('active', !isTiles);
+      ui.viewDropdownBtn.setAttribute('aria-selected', String(!isTiles));
+    }
+  }
+
+  function selectDropdownRoom(roomId, roomName, isPrivate) {
+    currentSelectedRoom = { id: roomId, name: roomName, isPrivate: Boolean(isPrivate) };
+    if (ui.dropdownTriggerName) {
+      ui.dropdownTriggerName.textContent = roomName || roomId;
+    }
+    if (ui.dropdownTriggerSub) {
+      ui.dropdownTriggerSub.textContent = isPrivate ? ('#' + roomId) : 'Public Community Room';
+    }
+    if (ui.dropdownTriggerAvatar) {
+      ui.dropdownTriggerAvatar.textContent = isPrivate ? (roomName || roomId).charAt(0).toUpperCase() : '💬';
+      ui.dropdownTriggerAvatar.style.background = isPrivate ? 'linear-gradient(135deg, #af52de, #5856d6)' : 'var(--apple-blue-gradient)';
+    }
+    if (ui.dropdownDeleteBtn) {
+      ui.dropdownDeleteBtn.hidden = !isPrivate;
+    }
+    if (ui.dropdownItemsList) {
+      var items = ui.dropdownItemsList.querySelectorAll('.dropdown-item');
+      items.forEach(function (btn) {
+        if (btn.dataset.roomId === roomId) {
+          btn.classList.add('selected');
+        } else {
+          btn.classList.remove('selected');
+        }
+      });
+    }
+  }
+
+  function toggleDropdown(force) {
+    if (!ui.dropdownPopover) return;
+    var open = typeof force === 'boolean' ? force : ui.dropdownPopover.hidden;
+    ui.dropdownPopover.hidden = !open;
+    if (ui.dropdownTriggerBtn) {
+      ui.dropdownTriggerBtn.classList.toggle('open', open);
+      ui.dropdownTriggerBtn.setAttribute('aria-expanded', String(open));
+    }
+  }
+
+  document.addEventListener('click', function (e) {
+    if (!ui.dropdownPopover || ui.dropdownPopover.hidden) return;
+    var inDropdown = ui.dropdownTriggerBtn && ui.dropdownTriggerBtn.contains(e.target);
+    var inPopover = ui.dropdownPopover && ui.dropdownPopover.contains(e.target);
+    if (!inDropdown && !inPopover) {
+      toggleDropdown(false);
+    }
+  });
+
+  // ---------- Delete Room Dialog & RPC Execution ----------
+  var pendingDeleteRoom = null;
+
+  function openDeleteRoomModal(roomId, roomName) {
+    if (roomId === 'general' || roomId === DEFAULT_ROOM) {
+      toast('General Chat cannot be deleted.');
+      return;
+    }
+    pendingDeleteRoom = { id: roomId, name: roomName || roomId };
+    if (ui.deleteRoomTitle) {
+      ui.deleteRoomTitle.textContent = 'Delete Room';
+    }
+    if (ui.deleteRoomDesc) {
+      ui.deleteRoomDesc.textContent = 'Permanently delete "' + (roomName || roomId) + '" (#' + roomId + ') and all of its messages? This action cannot be undone.';
+    }
+    var savedKey = load('linkchat.roomKey_' + roomId) || (state.room === roomId ? state.roomKey : '');
+    if (ui.deleteRoomKeyInput) {
+      ui.deleteRoomKeyInput.value = savedKey || '';
+    }
+    if (ui.deleteKeyGroup) {
+      ui.deleteKeyGroup.hidden = false;
+    }
+    if (ui.deleteRoomError) {
+      ui.deleteRoomError.textContent = '';
+    }
+    if (ui.deleteRoomModal) {
+      ui.deleteRoomModal.hidden = false;
+    }
+    if (ui.deleteRoomKeyInput) {
+      setTimeout(function () { ui.deleteRoomKeyInput.focus(); }, 100);
+    }
+  }
+
+  function closeDeleteRoomModal() {
+    if (ui.deleteRoomModal) ui.deleteRoomModal.hidden = true;
+    pendingDeleteRoom = null;
+  }
+
+  async function executeDeleteRoom(roomId, accessKey) {
+    if (roomId === 'general' || roomId === DEFAULT_ROOM) {
+      throw new Error('General Chat cannot be deleted.');
+    }
+
+    // Try RPC first (defined in supabase/005_delete_room.sql)
+    var rpcRes = await sb.rpc('delete_room', {
+      p_room_id: roomId,
+      p_access_key: accessKey || ''
+    });
+
+    if (rpcRes.error) {
+      // Fallback: direct delete if user is creator
+      var directRes = await sb.from('rooms').delete().eq('id', roomId);
+      if (directRes.error) {
+        if (rpcRes.error.message && rpcRes.error.message.indexOf('function public.delete_room') !== -1) {
+          throw new Error('Please run supabase/005_delete_room.sql in your Supabase SQL Editor to enable room deletion.');
+        }
+        throw new Error(rpcRes.error.message || directRes.error.message);
+      }
+    } else if (rpcRes.data && rpcRes.data.ok === false) {
+      throw new Error(rpcRes.data.error || 'Failed to delete room');
+    }
+
+    // Clean up local storage
+    store('linkchat.roomKey_' + roomId, null);
+
+    // If currently inside the deleted room, leave to Room Picker
+    if (state.room === roomId) {
+      state.room = DEFAULT_ROOM;
+      state.roomDisplayName = DEFAULT_ROOM_NAME;
+      state.roomKey = '';
+      store(ROOM_KEY, null);
+      store(ROOM_NAME_KEY, null);
+      store(ROOM_KEY_PASS, null);
+      try {
+        var u = new URL(window.location.href);
+        u.searchParams.delete('room');
+        u.searchParams.delete('key');
+        window.history.replaceState({}, '', u.toString());
+      } catch (e) {}
+      showRoomPicker();
+    }
+
+    toast('Room deleted successfully.');
+    closeDeleteRoomModal();
+    selectDropdownRoom('general', 'General Chat', false);
+    loadRoomsList();
+  }
+
   async function loadRoomsList() {
-    var container = $('rooms-list-container');
-    if (!container) return;
-    container.innerHTML = '<div class="rooms-loading">Loading active rooms…</div>';
+    var tilesContainer = $('rooms-list-container');
+    var dropList = $('dropdown-items-list');
+    if (tilesContainer) tilesContainer.innerHTML = '<div class="rooms-loading">Loading active rooms…</div>';
+    if (dropList) dropList.innerHTML = '<div class="rooms-loading">Loading rooms…</div>';
 
     var rooms = [];
     try {
@@ -1105,50 +1289,133 @@
   }
 
   function renderRoomsDirectory(rooms) {
-    var container = $('rooms-list-container');
-    if (!container) return;
-    container.innerHTML = '';
+    // 1. Populate Tiles view
+    var tilesContainer = $('rooms-list-container');
+    if (tilesContainer) {
+      tilesContainer.innerHTML = '';
 
-    // 1. General Community Room (Public • Open to all)
-    var genTile = document.createElement('button');
-    genTile.type = 'button';
-    genTile.className = 'room-tile-card';
-    genTile.innerHTML =
-      '<div class="room-tile-avatar general">' +
-        '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
-          '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>' +
-        '</svg>' +
-      '</div>' +
-      '<div class="room-tile-meta">' +
-        '<strong>General Chat</strong>' +
-        '<small>Public community room • No key needed</small>' +
-      '</div>' +
-      '<span class="room-tile-badge public">OPEN</span>';
-    genTile.onclick = function () { joinGeneral(); };
-    container.appendChild(genTile);
+      // General Community Room
+      var genTile = document.createElement('button');
+      genTile.type = 'button';
+      genTile.className = 'room-tile-card';
+      genTile.innerHTML =
+        '<div class="room-tile-avatar general">' +
+          '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+            '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>' +
+          '</svg>' +
+        '</div>' +
+        '<div class="room-tile-meta">' +
+          '<strong>General Chat</strong>' +
+          '<small>Public community room • No key needed</small>' +
+        '</div>' +
+        '<span class="room-tile-badge public">OPEN</span>';
+      genTile.onclick = function () { joinGeneral(); };
+      tilesContainer.appendChild(genTile);
 
-    // 2. Created & Active Rooms
-    if (rooms && rooms.length) {
-      rooms.forEach(function (r) {
-        var card = document.createElement('button');
-        card.type = 'button';
-        card.className = 'room-tile-card';
-        var initial = (r.name || r.id || 'R').charAt(0).toUpperCase();
-        var hasKey = Boolean(load('linkchat.roomKey_' + r.id));
-        card.innerHTML =
-          '<div class="room-tile-avatar private">' + escapeHtml(initial) + '</div>' +
-          '<div class="room-tile-meta">' +
-            '<strong>' + escapeHtml(r.name || r.id) + '</strong>' +
-            '<small>#' + escapeHtml(r.id) + '</small>' +
-          '</div>' +
-          (hasKey
-            ? '<span class="room-tile-badge public">ENTER</span>'
-            : '<span class="room-tile-badge locked">🔒 KEY</span>');
-        card.onclick = function () {
-          handleRoomTileClick(r.id, r.name || r.id);
-        };
-        container.appendChild(card);
-      });
+      if (rooms && rooms.length) {
+        rooms.forEach(function (r) {
+          var card = document.createElement('div');
+          card.className = 'room-tile-card';
+          var initial = (r.name || r.id || 'R').charAt(0).toUpperCase();
+          var hasKey = Boolean(load('linkchat.roomKey_' + r.id));
+          card.innerHTML =
+            '<div class="room-tile-avatar private">' + escapeHtml(initial) + '</div>' +
+            '<div class="room-tile-meta">' +
+              '<strong>' + escapeHtml(r.name || r.id) + '</strong>' +
+              '<small>#' + escapeHtml(r.id) + '</small>' +
+            '</div>' +
+            (hasKey
+              ? '<span class="room-tile-badge public">ENTER</span>'
+              : '<span class="room-tile-badge locked">🔒 KEY</span>') +
+            '<button type="button" class="btn-tile-delete" title="Delete room" aria-label="Delete room ' + escapeHtml(r.name || r.id) + '">' +
+              '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+                '<polyline points="3 6 5 6 21 6"></polyline>' +
+                '<path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>' +
+              '</svg>' +
+            '</button>';
+
+          card.onclick = function (e) {
+            var delBtn = e.target.closest('.btn-tile-delete');
+            if (delBtn) {
+              e.stopPropagation();
+              openDeleteRoomModal(r.id, r.name || r.id);
+              return;
+            }
+            handleRoomTileClick(r.id, r.name || r.id);
+          };
+          tilesContainer.appendChild(card);
+        });
+      }
+    }
+
+    // 2. Populate Dropdown view
+    var dropList = $('dropdown-items-list');
+    if (dropList) {
+      dropList.innerHTML = '';
+
+      // General item
+      var genItem = document.createElement('button');
+      genItem.type = 'button';
+      genItem.className = 'dropdown-item' + (currentSelectedRoom.id === 'general' ? ' selected' : '');
+      genItem.dataset.roomId = 'general';
+      genItem.innerHTML =
+        '<div class="dropdown-item-avatar" style="background: var(--apple-blue-gradient);">💬</div>' +
+        '<div class="dropdown-item-meta">' +
+          '<strong>General Chat</strong>' +
+          '<small>Public community room • No key needed</small>' +
+        '</div>';
+      genItem.onclick = function () {
+        selectDropdownRoom('general', 'General Chat', false);
+        toggleDropdown(false);
+      };
+      dropList.appendChild(genItem);
+
+      if (rooms && rooms.length) {
+        rooms.forEach(function (r) {
+          var initial = (r.name || r.id || 'R').charAt(0).toUpperCase();
+          var hasKey = Boolean(load('linkchat.roomKey_' + r.id));
+          var row = document.createElement('div');
+          row.style.display = 'flex';
+          row.style.alignItems = 'center';
+          row.style.width = '100%';
+
+          var itemBtn = document.createElement('button');
+          itemBtn.type = 'button';
+          itemBtn.className = 'dropdown-item' + (currentSelectedRoom.id === r.id ? ' selected' : '');
+          itemBtn.dataset.roomId = r.id;
+          itemBtn.style.flex = '1';
+          itemBtn.innerHTML =
+            '<div class="dropdown-item-avatar" style="background: linear-gradient(135deg, #af52de, #5856d6);">' + escapeHtml(initial) + '</div>' +
+            '<div class="dropdown-item-meta">' +
+              '<strong>' + escapeHtml(r.name || r.id) + '</strong>' +
+              '<small>#' + escapeHtml(r.id) + (hasKey ? ' • Key Saved' : ' • 🔒 Key Required') + '</small>' +
+            '</div>';
+          itemBtn.onclick = function () {
+            selectDropdownRoom(r.id, r.name || r.id, true);
+            toggleDropdown(false);
+          };
+
+          var delBtn = document.createElement('button');
+          delBtn.type = 'button';
+          delBtn.className = 'btn-item-delete';
+          delBtn.title = 'Delete room';
+          delBtn.setAttribute('aria-label', 'Delete room ' + (r.name || r.id));
+          delBtn.innerHTML =
+            '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+              '<polyline points="3 6 5 6 21 6"></polyline>' +
+              '<path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>' +
+            '</svg>';
+          delBtn.onclick = function (e) {
+            e.stopPropagation();
+            toggleDropdown(false);
+            openDeleteRoomModal(r.id, r.name || r.id);
+          };
+
+          row.appendChild(itemBtn);
+          row.appendChild(delBtn);
+          dropList.appendChild(row);
+        });
+      }
     }
   }
 
@@ -1224,6 +1491,86 @@
     });
   }
 
+  // View mode switcher: Dropdown vs Tiles
+  if (ui.viewDropdownBtn) {
+    ui.viewDropdownBtn.addEventListener('click', function () {
+      setRoomViewMode('dropdown');
+    });
+  }
+  if (ui.viewTilesBtn) {
+    ui.viewTilesBtn.addEventListener('click', function () {
+      setRoomViewMode('tiles');
+    });
+  }
+
+  // Apple Dropdown trigger & actions
+  if (ui.dropdownTriggerBtn) {
+    ui.dropdownTriggerBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      toggleDropdown();
+    });
+  }
+
+  if (ui.dropdownEnterBtn) {
+    ui.dropdownEnterBtn.addEventListener('click', function () {
+      if (currentSelectedRoom.id === 'general') {
+        joinGeneral();
+      } else {
+        handleRoomTileClick(currentSelectedRoom.id, currentSelectedRoom.name);
+      }
+    });
+  }
+
+  if (ui.dropdownDeleteBtn) {
+    ui.dropdownDeleteBtn.addEventListener('click', function () {
+      if (currentSelectedRoom.isPrivate) {
+        openDeleteRoomModal(currentSelectedRoom.id, currentSelectedRoom.name);
+      }
+    });
+  }
+
+  // Delete Room in Header
+  if (ui.deleteCurrentRoomBtn) {
+    ui.deleteCurrentRoomBtn.addEventListener('click', function () {
+      if (state.room && state.room !== 'general' && state.room !== DEFAULT_ROOM) {
+        openDeleteRoomModal(state.room, state.roomDisplayName);
+      }
+    });
+  }
+
+  // Delete Room Confirmation Modal Form
+  if (ui.deleteRoomForm) {
+    ui.deleteRoomForm.addEventListener('submit', async function (e) {
+      e.preventDefault();
+      if (!pendingDeleteRoom) return;
+      var keyInput = ui.deleteRoomKeyInput;
+      var err = ui.deleteRoomError;
+      var confirmBtn = ui.deleteRoomConfirmBtn;
+      var key = (keyInput && keyInput.value || '').trim();
+
+      if (confirmBtn) {
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = 'Deleting…';
+      }
+      if (err) err.textContent = '';
+
+      try {
+        await executeDeleteRoom(pendingDeleteRoom.id, key);
+      } catch (e) {
+        if (err) err.textContent = friendlyError(e);
+      } finally {
+        if (confirmBtn) {
+          confirmBtn.disabled = false;
+          confirmBtn.textContent = 'Delete Room';
+        }
+      }
+    });
+  }
+
+  if (ui.deleteRoomCancelBtn) {
+    ui.deleteRoomCancelBtn.addEventListener('click', closeDeleteRoomModal);
+  }
+
   var changeNameBtn = $('change-name-btn');
   if (changeNameBtn) {
     changeNameBtn.addEventListener('click', function () {
@@ -1285,6 +1632,8 @@
       if (ui.colCreate) ui.colCreate.removeAttribute('data-tab-hidden');
     }
 
+    var savedMode = load('linkchat.roomViewMode') || 'dropdown';
+    setRoomViewMode(savedMode);
     loadRoomsList();
     show('rooms');
   }
@@ -1304,6 +1653,9 @@
     show('chat');
     ui.roomName.textContent = state.roomDisplayName;
     if (ui.roomsBtn) ui.roomsBtn.hidden = !PRIVATE_ROOMS;
+    if (ui.deleteCurrentRoomBtn) {
+      ui.deleteCurrentRoomBtn.hidden = !PRIVATE_ROOMS || state.room === 'general' || state.room === DEFAULT_ROOM;
+    }
 
     var savedCleared = load('linkchat.clearedAt_' + state.room);
     state.clearedAt = savedCleared ? parseInt(savedCleared, 10) : 0;

@@ -6,7 +6,7 @@
   <title>LinkChat</title>
   <meta name="description" content="Instant, secure real-time messaging inspired by Apple design." />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='7' fill='%23007aff'/%3E%3Cpath d='M7 8.5h10M7 12.5h6' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E" />
-  <link rel="stylesheet" href="style.css?v=2.5" />
+  <link rel="stylesheet" href="style.css?v=2.6" />
   <script>
     // Apply saved theme before paint (prevents dark/light flash)
     try {
@@ -66,17 +66,67 @@
             <span class="col-pill">AVAILABLE ROOMS</span>
             <h3>Active & Created Rooms</h3>
           </div>
-          <button id="refresh-rooms-btn" type="button" class="btn-icon-subtle" title="Refresh room list" aria-label="Refresh room list">
-            <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <polyline points="23 4 23 10 17 10"></polyline>
-              <polyline points="1 20 1 14 7 14"></polyline>
-              <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
-            </svg>
-          </button>
+          <div class="section-title-right">
+            <!-- View Mode Switcher: Dropdown vs Tiles -->
+            <div class="apple-view-segmented" id="rooms-view-segmented" role="tablist">
+              <button type="button" class="view-tab active" id="view-dropdown-btn" role="tab" aria-selected="true">▾ Dropdown</button>
+              <button type="button" class="view-tab" id="view-tiles-btn" role="tab" aria-selected="false">☷ Tiles</button>
+            </div>
+            <button id="refresh-rooms-btn" type="button" class="btn-icon-subtle" title="Refresh room list" aria-label="Refresh room list">
+              <svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="23 4 23 10 17 10"></polyline>
+                <polyline points="1 20 1 14 7 14"></polyline>
+                <path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"></path>
+              </svg>
+            </button>
+          </div>
         </div>
 
-        <div id="rooms-list-container" class="rooms-directory-grid">
-          <div class="rooms-loading">Loading rooms…</div>
+        <!-- 1. Dropdown View Mode (Default) -->
+        <div id="rooms-dropdown-view" class="rooms-dropdown-wrapper">
+          <div class="apple-dropdown-custom">
+            <button type="button" class="dropdown-trigger-btn" id="dropdown-trigger-btn" aria-haspopup="listbox" aria-expanded="false">
+              <div class="dropdown-trigger-avatar" id="dropdown-trigger-avatar">💬</div>
+              <div class="dropdown-trigger-info">
+                <strong id="dropdown-trigger-name">General Chat</strong>
+                <small id="dropdown-trigger-sub">Public Community Room</small>
+              </div>
+              <div class="dropdown-trigger-chevron">
+                <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                  <polyline points="6 9 12 15 18 9"></polyline>
+                </svg>
+              </div>
+            </button>
+
+            <!-- Floating Apple Glass Dropdown Menu -->
+            <div class="apple-dropdown-popover" id="dropdown-popover" hidden role="listbox">
+              <div id="dropdown-items-list" class="dropdown-items-list">
+                <div class="rooms-loading">Loading rooms…</div>
+              </div>
+            </div>
+          </div>
+
+          <div class="dropdown-actions-row">
+            <button id="dropdown-enter-btn" type="button" class="btn-apple-primary btn-enter-room">
+              <span>Enter Selected Room</span>
+              <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="9 18 15 12 9 6"></polyline>
+              </svg>
+            </button>
+            <button id="dropdown-delete-btn" type="button" class="btn-apple-danger-icon" title="Delete selected room" aria-label="Delete selected room" hidden>
+              <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <polyline points="3 6 5 6 21 6"></polyline>
+                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              </svg>
+            </button>
+          </div>
+        </div>
+
+        <!-- 2. Grid Tiles View Mode -->
+        <div id="rooms-tiles-view" class="rooms-tiles-wrapper" hidden>
+          <div id="rooms-list-container" class="rooms-directory-grid">
+            <div class="rooms-loading">Loading rooms…</div>
+          </div>
         </div>
       </div>
 
@@ -253,6 +303,14 @@
           </svg>
         </button>
 
+        <!-- Delete Room Button (for private rooms) -->
+        <button id="delete-current-room-btn" class="apple-icon-btn danger" type="button" title="Delete this room" aria-label="Delete room" hidden>
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polyline points="3 6 5 6 21 6"></polyline>
+            <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          </svg>
+        </button>
+
         <!-- Copy Link Button -->
         <button id="copy-btn" class="apple-icon-btn" type="button" title="Share invite link" aria-label="Copy chat link">
           <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -372,6 +430,33 @@
     </div>
   </div>
 
+  <!-- Apple Modal Dialog for Deleting a Room -->
+  <div id="delete-room-modal" class="apple-modal-scrim" hidden>
+    <div class="apple-modal-card" role="dialog" aria-modal="true" aria-labelledby="delete-room-title">
+      <div class="apple-modal-icon-wrap">
+        <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <polyline points="3 6 5 6 21 6"></polyline>
+          <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+          <line x1="10" y1="11" x2="10" y2="17"></line>
+          <line x1="14" y1="11" x2="14" y2="17"></line>
+        </svg>
+      </div>
+      <h3 id="delete-room-title">Delete Room?</h3>
+      <p id="delete-room-desc" class="apple-modal-desc">This will permanently delete the room and all its messages.</p>
+      <form id="delete-room-form" style="width: 100%;" novalidate>
+        <div id="delete-key-group" class="input-group" style="margin-bottom: 12px;" hidden>
+          <label for="delete-room-key-input">Enter Access Key to confirm</label>
+          <input id="delete-room-key-input" type="password" maxlength="64" placeholder="Access key" autocomplete="current-password" />
+        </div>
+        <p id="delete-room-error" class="form-error" role="alert" style="margin-bottom: 12px;"></p>
+        <div class="apple-modal-actions">
+          <button id="delete-room-confirm-btn" type="submit" class="btn-apple-danger" style="width: 100%;">Delete Room</button>
+          <button id="delete-room-cancel-btn" type="button" class="btn-apple-cancel">Cancel</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
   <!-- Setup Screen -->
   <main id="setup" class="join" hidden>
     <div class="join-card">
@@ -386,6 +471,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
   <script src="config.js"></script>
-  <script src="app.js?v=2.5"></script>
+  <script src="app.js?v=2.6"></script>
 </body>
 </html>

@@ -483,6 +483,35 @@ button:active, .room-btn-apple:active, .segment-tab:active {
   letter-spacing: -0.015em;
   color: var(--apple-label);
 }
+.section-title-right {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.apple-view-segmented {
+  display: flex;
+  background: var(--apple-secondary-surface);
+  border-radius: 9px;
+  padding: 2px;
+  gap: 2px;
+}
+.view-tab {
+  border: 0;
+  background: none;
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--apple-secondary-label);
+  padding: 4px 9px;
+  border-radius: 7px;
+  cursor: pointer;
+  transition: background-color 0.15s, color 0.15s, box-shadow 0.15s;
+}
+.view-tab.active {
+  background: var(--apple-surface-solid);
+  color: var(--apple-label);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
 .btn-icon-subtle {
   width: 32px;
   height: 32px;
@@ -501,6 +530,234 @@ button:active, .room-btn-apple:active, .segment-tab:active {
 }
 .btn-icon-subtle:active {
   transform: scale(0.92);
+}
+
+/* Dropdown Mode Styles */
+.rooms-dropdown-wrapper {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+.apple-dropdown-custom {
+  position: relative;
+  width: 100%;
+}
+.dropdown-trigger-btn {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  background: var(--apple-secondary-surface);
+  border: 1.5px solid var(--apple-border);
+  border-radius: 16px;
+  cursor: pointer;
+  text-align: left;
+  outline: none;
+  transition: background 0.15s, border-color 0.15s, box-shadow 0.15s;
+}
+.dropdown-trigger-btn:hover,
+.dropdown-trigger-btn:focus-visible {
+  background: var(--apple-tertiary-surface);
+  border-color: rgba(0, 122, 255, 0.45);
+}
+.dropdown-trigger-btn.open {
+  border-color: var(--apple-blue);
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.2);
+}
+.dropdown-trigger-avatar {
+  width: 36px;
+  height: 36px;
+  border-radius: 10px;
+  display: grid;
+  place-items: center;
+  font-size: 15px;
+  font-weight: 700;
+  color: white;
+  background: var(--apple-blue-gradient);
+  flex: none;
+}
+.dropdown-trigger-info {
+  flex: 1;
+  min-width: 0;
+}
+.dropdown-trigger-info strong {
+  display: block;
+  font-size: 14.5px;
+  font-weight: 650;
+  color: var(--apple-label);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dropdown-trigger-info small {
+  display: block;
+  font-size: 12px;
+  color: var(--apple-secondary-label);
+  margin-top: 1px;
+}
+.dropdown-trigger-chevron {
+  color: var(--apple-secondary-label);
+  display: grid;
+  place-items: center;
+  flex: none;
+  transition: transform 0.2s var(--apple-spring);
+}
+.dropdown-trigger-btn.open .dropdown-trigger-chevron {
+  transform: rotate(180deg);
+}
+
+.apple-dropdown-popover {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 80;
+  background: var(--apple-surface-solid);
+  backdrop-filter: var(--apple-blur);
+  -webkit-backdrop-filter: var(--apple-blur);
+  border: 1px solid var(--apple-border);
+  border-radius: 16px;
+  box-shadow: var(--apple-shadow-lg);
+  overflow: hidden;
+  animation: dropdownSpring 0.2s var(--apple-spring-bounce) forwards;
+}
+@keyframes dropdownSpring {
+  0% { opacity: 0; transform: translateY(-8px) scale(0.98); }
+  100% { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.dropdown-items-list {
+  max-height: 240px;
+  overflow-y: auto;
+  padding: 6px;
+  overscroll-behavior: contain;
+}
+
+.dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: none;
+  background: none;
+  cursor: pointer;
+  text-align: left;
+  box-sizing: border-box;
+  transition: background-color 0.12s;
+}
+.dropdown-item:hover,
+.dropdown-item:focus-visible {
+  background: var(--apple-secondary-surface);
+}
+.dropdown-item.selected {
+  background: rgba(0, 122, 255, 0.1);
+}
+.dropdown-item.selected strong {
+  color: var(--apple-blue);
+}
+.dropdown-item-avatar {
+  width: 32px;
+  height: 32px;
+  border-radius: 9px;
+  display: grid;
+  place-items: center;
+  font-size: 13px;
+  font-weight: 700;
+  color: white;
+  flex: none;
+}
+.dropdown-item-meta {
+  flex: 1;
+  min-width: 0;
+}
+.dropdown-item-meta strong {
+  display: block;
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--apple-label);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.dropdown-item-meta small {
+  display: block;
+  font-size: 11px;
+  color: var(--apple-secondary-label);
+}
+.btn-item-delete {
+  width: 28px;
+  height: 28px;
+  border-radius: 7px;
+  display: grid;
+  place-items: center;
+  color: var(--apple-secondary-label);
+  background: none;
+  border: none;
+  cursor: pointer;
+  opacity: 0.6;
+  transition: opacity 0.15s, background-color 0.15s, color 0.15s;
+}
+.btn-item-delete:hover {
+  opacity: 1;
+  color: var(--apple-red);
+  background: rgba(255, 59, 48, 0.12);
+}
+
+.dropdown-actions-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+.btn-enter-room {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+.btn-apple-danger-icon {
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  border: 1px solid rgba(255, 59, 48, 0.25);
+  background: rgba(255, 59, 48, 0.1);
+  color: var(--apple-red);
+  display: grid;
+  place-items: center;
+  cursor: pointer;
+  flex: none;
+  transition: background 0.15s, transform 0.15s;
+}
+.btn-apple-danger-icon:hover {
+  background: rgba(255, 59, 48, 0.2);
+}
+.btn-apple-danger-icon:active {
+  transform: scale(0.95);
+}
+
+/* Delete button on Tile cards */
+.btn-tile-delete {
+  width: 30px;
+  height: 30px;
+  border-radius: 8px;
+  display: grid;
+  place-items: center;
+  color: var(--apple-secondary-label);
+  background: none;
+  border: none;
+  cursor: pointer;
+  margin-left: 4px;
+  opacity: 0.6;
+  flex: none;
+  transition: opacity 0.15s, color 0.15s, background 0.15s;
+}
+.btn-tile-delete:hover {
+  opacity: 1;
+  color: var(--apple-red);
+  background: rgba(255, 59, 48, 0.12);
 }
 
 .rooms-directory-grid {
