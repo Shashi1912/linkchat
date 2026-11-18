@@ -7,6 +7,7 @@
 window.LINKCHAT_CONFIG = {
   SUPABASE_URL: 'https://wutfwjontezmagjpevbw.supabase.co',            // e.g. https://abcdxyz.supabase.co
   SUPABASE_PUBLISHABLE_KEY: 'sb_publishable_QYKskmiELV_oCl8KdjPcig_Fb_2mXCc', // "publishable" or "anon public" key
-  ROOM_ID: 'general',
-  ROOM_NAME: 'General Chat',
+  DEFAULT_ROOM_ID: 'general',
+  DEFAULT_ROOM_NAME: 'General Chat',
+  ENABLE_PRIVATE_ROOMS: true,   // set to false to hide room creation/joining
 };

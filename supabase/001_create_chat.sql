@@ -51,6 +51,10 @@ create policy "Users insert their own messages"
 revoke all on public.messages from anon;
 revoke update, delete, truncate on public.messages from authenticated;
 
+-- Explicit grants: RLS policies above decide *what* rows are visible,
+-- but PostgreSQL still needs table-level privileges to allow access at all.
+grant select, insert on public.messages to authenticated;
+
 -- 3. Server-side rules on every insert --------------------------------------
 -- The server, not the browser, decides who sent the message and when,
 -- and it throttles spam: at most 5 messages per 10 seconds per user.

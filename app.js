@@ -4,23 +4,40 @@
   'use strict';
 
   var cfg = window.LINKCHAT_CONFIG || {};
-  var ROOM = cfg.ROOM_ID || 'general';
+  var ROOM = cfg.DEFAULT_ROOM_ID || cfg.ROOM_ID || 'general';
+  var ROOM_NAME = cfg.DEFAULT_ROOM_NAME || cfg.ROOM_NAME || 'General Chat';
+  var PRIVATE_ROOMS = cfg.ENABLE_PRIVATE_ROOMS !== false;
   var PAGE_SIZE = 50;
   var MAX_LEN = 1000;
   var NAME_KEY = 'linkchat.name';
+  var ROOM_KEY = 'linkchat.room';
+  var ROOM_NAME_KEY = 'linkchat.roomName';
   var THEME_KEY = 'linkchat.theme';
   var BUCKET = 'chat-images';
   var PHOTO_MAX_PX = 1600;    // photos are shrunk to this size before upload
   var COLUMNS = 'id, room_id, user_id, display_name, content, image_path, created_at';
+  var RECONNECT_DELAY = 3000;
+  var MAX_RECONNECT_DELAY = 30000;
 
   // ---------- DOM ----------
   function $(id) { return document.getElementById(id); }
   var ui = {
     join: $('join'), joinForm: $('join-form'), nameInput: $('name-input'),
     joinBtn: $('join-btn'), joinError: $('join-error'),
+    // Room picker
+    roomPicker: $('room-picker'), generalBtn: $('general-btn'),
+    joinRoomForm: $('join-room-form'), roomIdInput: $('room-id-input'),
+    roomKeyInput: $('room-key-input'), roomJoinError: $('room-join-error'),
+    roomJoinBtn: $('room-join-btn'),
+    createRoomForm: $('create-room-form'), newRoomId: $('new-room-id'),
+    newRoomName: $('new-room-name'), newRoomKey: $('new-room-key'),
+    createRoomError: $('create-room-error'), createRoomBtn: $('create-room-btn'),
+    roomBackBtn: $('room-back-btn'),
+    // Chat
     chat: $('chat'), setup: $('setup'), roomName: $('room-name'),
     online: $('online'), onlineCount: $('online-count'), onlineList: $('online-list'),
-    conn: $('conn'), copyBtn: $('copy-btn'), themeBtn: $('theme-btn'), leaveBtn: $('leave-btn'),
+    conn: $('conn'), copyBtn: $('copy-btn'), roomsBtn: $('rooms-btn'),
+    themeBtn: $('theme-btn'), leaveBtn: $('leave-btn'),
     messages: $('messages'), olderBtn: $('older-btn'), status: $('status'), feed: $('feed'),
     composer: $('composer'), input: $('msg-input'), sendBtn: $('send-btn'), counter: $('counter'),
     attachBtn: $('attach-btn'), fileInput: $('file-input'),
@@ -111,6 +128,8 @@
   var state = {
     user: null,
     name: '',
+    room: ROOM,
+    roomDisplayName: ROOM_NAME,
     msgs: new Map(),     // id -> message
     oldestRaw: null,     // created_at string of the oldest loaded message
     hasMore: false,
@@ -120,6 +139,8 @@
     channel: null,
     everSubscribed: false,
     seq: 0,
+    reconnectDelay: RECONNECT_DELAY,
+    reconnectTimer: null,
   };
 
   function toMsg(row) {
@@ -139,7 +160,7 @@
   // Insert or replace by id: this is what prevents duplicates between the
   // optimistic copy, the insert response and the realtime event.
   function upsert(row) {
-    if (!row || row.room_id && row.room_id !== ROOM) return;
+    if (!row || row.room_id && row.room_id !== state.room) return;
     var old = state.msgs.get(row.id);
     if (old && old.localUrl) URL.revokeObjectURL(old.localUrl);
     state.msgs.set(row.id, toMsg(row));
@@ -272,7 +293,7 @@
 
   // ---------- Loading messages ----------
   function baseQuery() {
-    return sb.from('messages').select(COLUMNS).eq('room_id', ROOM);
+    return sb.from('messages').select(COLUMNS).eq('room_id', state.room);
   }
 
   async function loadLatest() {
@@ -315,6 +336,37 @@
     }
   }
 
+  // ---------- WebSocket health ----------
+  function isWsAlive() {
+    try {
+      var conn = sb.realtime && sb.realtime.conn;
+      return conn && conn.readyState === WebSocket.OPEN;
+    } catch (e) { return false; }
+  }
+
+  function forceReconnect() {
+    clearTimeout(state.reconnectTimer);
+    var oldCh = state.channel;
+    state.channel = null;
+    if (oldCh) {
+      try { oldCh.untrack(); } catch (e) { /* ignore */ }
+      sb.removeChannel(oldCh);
+    }
+    subscribe();
+    catchUp();
+  }
+
+  function scheduleReconnect() {
+    clearTimeout(state.reconnectTimer);
+    state.reconnectTimer = setTimeout(function () {
+      if (!isWsAlive() && state.ready) {
+        forceReconnect();
+      }
+      // Exponential backoff, capped
+      state.reconnectDelay = Math.min(state.reconnectDelay * 1.5, MAX_RECONNECT_DELAY);
+    }, state.reconnectDelay);
+  }
+
   // ---------- Realtime + presence ----------
   function onRealtimeRow(row) {
     if (!state.ready) { state.buffer.push(row); return; }
@@ -337,6 +389,10 @@
 
   function setConnected(ok) {
     ui.conn.hidden = ok;
+    if (ok) {
+      // Reset reconnect delay on successful connection
+      state.reconnectDelay = RECONNECT_DELAY;
+    }
     if (!ok) { ui.online.hidden = true; ui.onlineList.hidden = true; ui.online.setAttribute('aria-expanded', 'false'); }
   }
 
@@ -347,13 +403,13 @@
   });
 
   function subscribe() {
-    var ch = sb.channel('room:' + ROOM, {
+    var ch = sb.channel('room:' + state.room, {
       config: { presence: { key: state.user.id } }, // one entry per person, even with several tabs
     });
     state.channel = ch;
 
     ch.on('postgres_changes',
-      { event: 'INSERT', schema: 'public', table: 'messages', filter: 'room_id=eq.' + ROOM },
+      { event: 'INSERT', schema: 'public', table: 'messages', filter: 'room_id=eq.' + state.room },
       function (payload) { onRealtimeRow(payload.new); })
       .on('presence', { event: 'sync' }, updatePresence)
       .subscribe(function (status) {
@@ -365,14 +421,41 @@
           state.everSubscribed = true;
         } else if (status === 'CHANNEL_ERROR' || status === 'TIMED_OUT' || status === 'CLOSED') {
           setConnected(false);
+          // Auto-retry with exponential backoff
+          scheduleReconnect();
         }
       });
   }
 
-  window.addEventListener('online', function () { if (state.ready) catchUp(); });
-  document.addEventListener('visibilitychange', function () {
-    if (document.visibilityState === 'visible' && state.ready) catchUp();
+  // Reconnect when network comes back
+  window.addEventListener('online', function () {
+    if (state.ready) {
+      if (!isWsAlive()) {
+        forceReconnect();
+      } else {
+        catchUp();
+      }
+    }
   });
+
+  // Reconnect when tab becomes visible (browser throttles background WS)
+  document.addEventListener('visibilitychange', function () {
+    if (document.visibilityState === 'visible' && state.ready) {
+      if (!isWsAlive()) {
+        forceReconnect();
+      } else {
+        catchUp();
+      }
+    }
+  });
+
+  // Periodic heartbeat check: every 30s, verify WebSocket is alive
+  setInterval(function () {
+    if (state.ready && !isWsAlive()) {
+      setConnected(false);
+      scheduleReconnect();
+    }
+  }, 30000);
 
   // ---------- Sending ----------
   function updateComposer() {
@@ -476,7 +559,7 @@
     try {
       if (m.blob && !m.uploaded) await uploadPhoto(m);
       var res = await sb.from('messages')
-        .insert({ id: m.id, room_id: ROOM, display_name: m.display_name,
+        .insert({ id: m.id, room_id: state.room, display_name: m.display_name,
                   content: m.content, image_path: m.image_path || null })
         .select(COLUMNS)
         .single();
@@ -501,6 +584,9 @@
   // ---------- Copy link ----------
   ui.copyBtn.addEventListener('click', async function () {
     var url = location.origin + location.pathname;
+    if (state.room !== 'general') {
+      url += '?room=' + encodeURIComponent(state.room);
+    }
     try {
       await navigator.clipboard.writeText(url);
     } catch (e) {
@@ -514,9 +600,109 @@
     toast('Link copied!');
   });
 
+  // ---------- Room picker ----------
+  if (ui.roomsBtn) {
+    ui.roomsBtn.addEventListener('click', function () {
+      leaveChat();
+      showRoomPicker();
+    });
+  }
+
+  if (ui.generalBtn) {
+    ui.generalBtn.addEventListener('click', function () {
+      state.room = 'general';
+      state.roomDisplayName = ROOM_NAME;
+      store(ROOM_KEY, 'general');
+      store(ROOM_NAME_KEY, ROOM_NAME);
+      enterChat();
+    });
+  }
+
+  if (ui.joinRoomForm) {
+    ui.joinRoomForm.addEventListener('submit', async function (e) {
+      e.preventDefault();
+      var roomId = (ui.roomIdInput.value || '').trim().toLowerCase();
+      var key = (ui.roomKeyInput.value || '').trim();
+      ui.roomJoinError.textContent = '';
+
+      if (!roomId) { ui.roomJoinError.textContent = 'Enter a room ID.'; return; }
+      if (!key) { ui.roomJoinError.textContent = 'Enter the access key.'; return; }
+
+      ui.roomJoinBtn.disabled = true;
+      ui.roomJoinBtn.textContent = 'Joining…';
+      try {
+        var res = await sb.rpc('join_room', { p_room_id: roomId, p_access_key: key });
+        if (res.error) throw res.error;
+        var data = res.data;
+        if (!data.ok) {
+          ui.roomJoinError.textContent = data.error || 'Could not join room.';
+          ui.roomJoinBtn.disabled = false;
+          ui.roomJoinBtn.textContent = 'Join Private Room';
+          return;
+        }
+        state.room = roomId;
+        state.roomDisplayName = data.room_name || roomId;
+        store(ROOM_KEY, roomId);
+        store(ROOM_NAME_KEY, state.roomDisplayName);
+        enterChat();
+      } catch (err) {
+        ui.roomJoinError.textContent = friendlyError(err);
+        ui.roomJoinBtn.disabled = false;
+        ui.roomJoinBtn.textContent = 'Join Private Room';
+      }
+    });
+  }
+
+  if (ui.createRoomForm) {
+    ui.createRoomForm.addEventListener('submit', async function (e) {
+      e.preventDefault();
+      var roomId = (ui.newRoomId.value || '').trim().toLowerCase();
+      var roomName = (ui.newRoomName.value || '').trim();
+      var key = (ui.newRoomKey.value || '').trim();
+      ui.createRoomError.textContent = '';
+
+      if (!roomId) { ui.createRoomError.textContent = 'Enter a room ID.'; return; }
+      if (!roomName) { ui.createRoomError.textContent = 'Enter a room name.'; return; }
+      if (key.length < 4) { ui.createRoomError.textContent = 'Access key must be at least 4 characters.'; return; }
+
+      ui.createRoomBtn.disabled = true;
+      ui.createRoomBtn.textContent = 'Creating…';
+      try {
+        var res = await sb.rpc('create_room', { p_room_id: roomId, p_room_name: roomName, p_access_key: key });
+        if (res.error) throw res.error;
+        var data = res.data;
+        if (!data.ok) {
+          ui.createRoomError.textContent = data.error || 'Could not create room.';
+          ui.createRoomBtn.disabled = false;
+          ui.createRoomBtn.textContent = 'Create Room';
+          return;
+        }
+        toast('Room created! Share the ID and key with your friends.');
+        state.room = roomId;
+        state.roomDisplayName = roomName;
+        store(ROOM_KEY, roomId);
+        store(ROOM_NAME_KEY, roomName);
+        enterChat();
+      } catch (err) {
+        ui.createRoomError.textContent = friendlyError(err);
+        ui.createRoomBtn.disabled = false;
+        ui.createRoomBtn.textContent = 'Create Room';
+      }
+    });
+  }
+
+  if (ui.roomBackBtn) {
+    ui.roomBackBtn.addEventListener('click', function () {
+      store(NAME_KEY, null);
+      state.name = '';
+      showJoin('');
+    });
+  }
+
   // ---------- Screens ----------
   function show(screen) {
     ui.join.hidden = screen !== 'join';
+    if (ui.roomPicker) ui.roomPicker.hidden = screen !== 'rooms';
     ui.chat.hidden = screen !== 'chat';
     ui.setup.hidden = screen !== 'setup';
   }
@@ -530,15 +716,52 @@
     ui.nameInput.focus();
   }
 
+  function showRoomPicker() {
+    // Reset forms
+    if (ui.roomIdInput) ui.roomIdInput.value = '';
+    if (ui.roomKeyInput) ui.roomKeyInput.value = '';
+    if (ui.roomJoinError) ui.roomJoinError.textContent = '';
+    if (ui.roomJoinBtn) { ui.roomJoinBtn.disabled = false; ui.roomJoinBtn.textContent = 'Join Private Room'; }
+    if (ui.newRoomId) ui.newRoomId.value = '';
+    if (ui.newRoomName) ui.newRoomName.value = '';
+    if (ui.newRoomKey) ui.newRoomKey.value = '';
+    if (ui.createRoomError) ui.createRoomError.textContent = '';
+    if (ui.createRoomBtn) { ui.createRoomBtn.disabled = false; ui.createRoomBtn.textContent = 'Create Room'; }
+
+    // Check if URL has a room parameter
+    var params = new URLSearchParams(window.location.search);
+    var urlRoom = params.get('room');
+    if (urlRoom && ui.roomIdInput) {
+      ui.roomIdInput.value = urlRoom;
+    }
+
+    show('rooms');
+  }
+
+  function leaveChat() {
+    var ch = state.channel;
+    state.channel = null;
+    clearTimeout(state.reconnectTimer);
+    if (ch) {
+      try { ch.untrack(); } catch (e) { /* ignore */ }
+      sb.removeChannel(ch);
+    }
+    state.msgs = new Map();
+    state.ready = false;
+  }
+
   async function enterChat() {
     show('chat');
-    ui.roomName.textContent = cfg.ROOM_NAME || 'General Chat';
+    ui.roomName.textContent = state.roomDisplayName;
+    if (ui.roomsBtn) ui.roomsBtn.hidden = !PRIVATE_ROOMS;
     state.msgs = new Map();
     state.ready = false;
     state.buffer = [];
     state.hasMore = false;
     state.oldestRaw = null;
     state.everSubscribed = false;
+    state.reconnectDelay = RECONNECT_DELAY;
+    clearTimeout(state.reconnectTimer);
     ui.feed.replaceChildren();
     ui.status.textContent = 'Loading messages…';
     setConnected(true);
@@ -582,7 +805,29 @@
       state.user = session.user;
       state.name = name;
       store(NAME_KEY, name);
-      enterChat();
+
+      // Check URL for room param
+      var params = new URLSearchParams(window.location.search);
+      var urlRoom = params.get('room');
+
+      if (PRIVATE_ROOMS && !urlRoom) {
+        // Show room picker
+        showRoomPicker();
+      } else if (urlRoom) {
+        // Pre-fill room picker with the URL room
+        if (PRIVATE_ROOMS) {
+          showRoomPicker();
+        } else {
+          state.room = urlRoom;
+          state.roomDisplayName = urlRoom;
+          enterChat();
+        }
+      } else {
+        // Go straight to general chat
+        state.room = ROOM;
+        state.roomDisplayName = ROOM_NAME;
+        enterChat();
+      }
     } catch (err) {
       ui.joinError.textContent = friendlyError(err);
       ui.joinBtn.disabled = false;
@@ -591,14 +836,10 @@
   });
 
   ui.leaveBtn.addEventListener('click', async function () {
-    var ch = state.channel;
-    state.channel = null;
-    if (ch) {
-      try { await ch.untrack(); } catch (e) { /* ignore */ }
-      sb.removeChannel(ch);
-    }
+    leaveChat();
     store(NAME_KEY, null);
-    state.msgs = new Map();
+    store(ROOM_KEY, null);
+    store(ROOM_NAME_KEY, null);
     ui.onlineList.hidden = true;
     showJoin('');
   });
@@ -608,15 +849,40 @@
     if (!isConfigured() || !window.supabase) { show('setup'); return; }
     sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_PUBLISHABLE_KEY, {
       auth: { persistSession: true, autoRefreshToken: true },
+      realtime: {
+        params: { eventsPerSecond: 10 },
+      },
     });
 
     var saved = load(NAME_KEY);
+    var savedRoom = load(ROOM_KEY);
+    var savedRoomName = load(ROOM_NAME_KEY);
     var got = await sb.auth.getSession();
     var session = got.data && got.data.session;
+
     if (session && saved) {
       state.user = session.user;
       state.name = saved;
-      enterChat();
+
+      // Check URL for room param first
+      var params = new URLSearchParams(window.location.search);
+      var urlRoom = params.get('room');
+
+      if (urlRoom && PRIVATE_ROOMS) {
+        // URL has a room, show room picker with it pre-filled
+        showRoomPicker();
+      } else if (savedRoom) {
+        // Resume saved room
+        state.room = savedRoom;
+        state.roomDisplayName = savedRoomName || savedRoom;
+        enterChat();
+      } else if (PRIVATE_ROOMS) {
+        showRoomPicker();
+      } else {
+        state.room = ROOM;
+        state.roomDisplayName = ROOM_NAME;
+        enterChat();
+      }
     } else {
       showJoin(saved);
     }

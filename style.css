@@ -272,6 +272,90 @@ code { background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
 }
 .counter.over { color: var(--danger); }
 
+/* ---------- Room Picker ---------- */
+.room-card { max-width: 420px; }
+.room-card h2 { margin: 0 0 2px; font-size: 22px; }
+
+.room-btn {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  border-radius: 12px;
+  padding: 14px 16px;
+  text-align: left;
+  transition: background 0.15s;
+}
+.room-btn:hover { background: var(--border); }
+.room-btn-icon { font-size: 24px; flex: none; }
+.room-btn-text { flex: 1; display: flex; flex-direction: column; gap: 2px; }
+.room-btn-text strong { font-size: 15px; }
+.room-btn-text small { font-size: 12.5px; color: var(--muted); }
+.room-btn-arrow { font-size: 18px; color: var(--muted); flex: none; }
+
+.room-divider {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 16px 0;
+  color: var(--muted);
+  font-size: 13px;
+}
+.room-divider::before,
+.room-divider::after {
+  content: '';
+  flex: 1;
+  height: 1px;
+  background: var(--border);
+}
+
+.room-card label {
+  font-weight: 600;
+  font-size: 14px;
+  margin-bottom: 6px;
+  display: block;
+}
+.room-card input {
+  width: 100%;
+  border: 1px solid var(--border);
+  background: var(--surface-2);
+  border-radius: 10px;
+  padding: 11px 12px;
+}
+.room-card .btn-primary { width: 100%; margin-top: 10px; }
+
+.create-room-details {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  overflow: hidden;
+}
+.create-room-summary {
+  padding: 12px 16px;
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  color: var(--accent);
+  list-style: none;
+}
+.create-room-summary::-webkit-details-marker { display: none; }
+.create-room-summary::before { content: '+ '; }
+.create-room-details[open] .create-room-summary { border-bottom: 1px solid var(--border); }
+.create-room-inner {
+  padding: 14px 16px;
+}
+
+.btn-link {
+  border: 0;
+  background: none;
+  color: var(--muted);
+  font-size: 13.5px;
+  padding: 0;
+  text-decoration: underline;
+}
+.btn-link:hover { color: var(--text); }
+
 /* ---------- Toast ---------- */
 .toast {
   position: fixed; left: 50%; bottom: 90px;

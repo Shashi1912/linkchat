@@ -35,6 +35,55 @@
     </form>
   </main>
 
+  <!-- Room picker screen (shown after joining, if private rooms are enabled) -->
+  <main id="room-picker" class="join" hidden>
+    <div class="join-card room-card">
+      <h2>Choose a Room</h2>
+      <p class="subtitle">Join the general room or enter a private one.</p>
+
+      <!-- General room -->
+      <button id="general-btn" type="button" class="room-btn">
+        <span class="room-btn-icon">💬</span>
+        <span class="room-btn-text">
+          <strong>General Chat</strong>
+          <small>Open to everyone</small>
+        </span>
+        <span class="room-btn-arrow">→</span>
+      </button>
+
+      <div class="room-divider"><span>or</span></div>
+
+      <!-- Join private room -->
+      <form id="join-room-form" novalidate>
+        <label for="room-id-input">Room ID</label>
+        <input id="room-id-input" type="text" maxlength="40" placeholder="e.g. team-alpha" />
+        <label for="room-key-input" style="margin-top:8px">Access Key</label>
+        <input id="room-key-input" type="password" maxlength="64" placeholder="Enter room access key" />
+        <p id="room-join-error" class="form-error" role="alert"></p>
+        <button id="room-join-btn" type="submit" class="btn-primary">Join Private Room</button>
+      </form>
+
+      <div class="room-divider"><span>or</span></div>
+
+      <!-- Create room -->
+      <details id="create-room-details" class="create-room-details">
+        <summary class="create-room-summary">Create a new private room</summary>
+        <form id="create-room-form" class="create-room-inner" novalidate>
+          <label for="new-room-id">Room ID</label>
+          <input id="new-room-id" type="text" maxlength="40" placeholder="e.g. my-team" />
+          <label for="new-room-name">Room Name</label>
+          <input id="new-room-name" type="text" maxlength="60" placeholder="e.g. My Team Chat" />
+          <label for="new-room-key">Access Key</label>
+          <input id="new-room-key" type="text" maxlength="64" placeholder="Share this key with members" />
+          <p id="create-room-error" class="form-error" role="alert"></p>
+          <button id="create-room-btn" type="submit" class="btn-primary">Create Room</button>
+        </form>
+      </details>
+
+      <button id="room-back-btn" type="button" class="btn-link" style="margin-top:14px">← Change name</button>
+    </div>
+  </main>
+
   <!-- Chat screen -->
   <div id="chat" class="chat" hidden>
     <header class="chat-header">
@@ -51,6 +100,9 @@
       <div class="header-actions">
         <button id="copy-btn" class="icon-btn" type="button" title="Copy chat link" aria-label="Copy chat link">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>
+        </button>
+        <button id="rooms-btn" class="icon-btn" type="button" title="Switch room" aria-label="Switch room" hidden>
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>
         </button>
         <button id="theme-btn" class="icon-btn" type="button" title="Toggle dark mode" aria-label="Toggle dark mode">
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
