@@ -1,0 +1,101 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+  <title>LinkChat</title>
+  <meta name="description" content="Join the conversation instantly." />
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='6' fill='%230f766e'/%3E%3Cpath d='M7 8h10M7 12h7' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E" />
+  <link rel="stylesheet" href="style.css" />
+  <script>
+    // Apply the saved theme before the page paints (no flash).
+    try {
+      var t = localStorage.getItem('linkchat.theme');
+      if (t) document.documentElement.dataset.theme = t;
+    } catch (e) {}
+  </script>
+</head>
+<body>
+  <!-- Join screen -->
+  <main id="join" class="join" hidden>
+    <form id="join-form" class="join-card" novalidate>
+      <div class="logo" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="28" height="28"><path d="M4 6a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H10l-4 4v-4H7a3 3 0 0 1-3-3z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/><path d="M8 8.5h8M8 12h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>
+      </div>
+      <h1>LinkChat</h1>
+      <p class="subtitle">Join the conversation instantly.</p>
+
+      <label for="name-input">Display name</label>
+      <input id="name-input" type="text" maxlength="30" autocomplete="nickname"
+             placeholder="e.g. Priya" required />
+      <p id="join-error" class="form-error" role="alert"></p>
+
+      <button id="join-btn" type="submit" class="btn-primary">Join Chat</button>
+      <p class="fine-print">No account needed. Anyone with this link can read and post in this room, so don't share private information.</p>
+    </form>
+  </main>
+
+  <!-- Chat screen -->
+  <div id="chat" class="chat" hidden>
+    <header class="chat-header">
+      <div class="logo small" aria-hidden="true">
+        <svg viewBox="0 0 24 24" width="20" height="20"><path d="M4 6a3 3 0 0 1 3-3h10a3 3 0 0 1 3 3v8a3 3 0 0 1-3 3H10l-4 4v-4H7a3 3 0 0 1-3-3z" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/></svg>
+      </div>
+      <div class="room-info">
+        <div id="room-name" class="room-name">General Chat</div>
+        <button id="online" class="online" type="button" hidden aria-expanded="false" aria-controls="online-list">
+          <span class="dot"></span><span id="online-count">0 online</span>
+        </button>
+        <span id="conn" class="conn" hidden>Reconnecting…</span>
+      </div>
+      <div class="header-actions">
+        <button id="copy-btn" class="icon-btn" type="button" title="Copy chat link" aria-label="Copy chat link">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M10 13a5 5 0 0 0 7.5.5l3-3a5 5 0 0 0-7-7l-1.7 1.7"/><path d="M14 11a5 5 0 0 0-7.5-.5l-3 3a5 5 0 0 0 7 7l1.7-1.7"/></svg>
+        </button>
+        <button id="theme-btn" class="icon-btn" type="button" title="Toggle dark mode" aria-label="Toggle dark mode">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 12.8A9 9 0 1 1 11.2 3a7 7 0 0 0 9.8 9.8z"/></svg>
+        </button>
+        <button id="leave-btn" class="icon-btn" type="button" title="Leave chat" aria-label="Leave chat">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+        </button>
+      </div>
+    </header>
+
+    <div id="online-list" class="online-list" hidden></div>
+
+    <section id="messages" class="messages" aria-live="polite" aria-label="Messages">
+      <button id="older-btn" class="older-btn" type="button" hidden>Load earlier messages</button>
+      <div id="status" class="status"></div>
+      <div id="feed" class="feed"></div>
+    </section>
+
+    <form id="composer" class="composer" novalidate>
+      <button id="attach-btn" class="icon-btn attach-btn" type="button" title="Send a photo" aria-label="Send a photo">
+        <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="m21.4 11.1-8.5 8.5a5.5 5.5 0 0 1-7.8-7.8l8.5-8.5a3.7 3.7 0 0 1 5.2 5.2l-8.5 8.5a1.8 1.8 0 0 1-2.6-2.6l7.8-7.8"/></svg>
+      </button>
+      <input id="file-input" type="file" accept="image/*" hidden />
+      <textarea id="msg-input" rows="1" maxlength="1000" placeholder="Type a message"
+                aria-label="Message" enterkeyhint="send"></textarea>
+      <button id="send-btn" class="send-btn" type="submit" aria-label="Send" disabled>
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 2 11 13"/><path d="M22 2 15 22l-4-9-9-4z"/></svg>
+      </button>
+      <span id="counter" class="counter" hidden></span>
+    </form>
+  </div>
+
+  <!-- Shown when config.js has not been filled in -->
+  <main id="setup" class="join" hidden>
+    <div class="join-card">
+      <h1>LinkChat</h1>
+      <p class="subtitle">Almost there!</p>
+      <p>Open <code>config.js</code> and fill in your Supabase project URL and publishable key. See <code>README.md</code>, Part B.</p>
+    </div>
+  </main>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+  <script src="config.js"></script>
+  <script src="app.js"></script>
+</body>
+</html>
