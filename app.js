@@ -115,6 +115,31 @@
     toast: $('toast'),
   };
 
+  var sb = null;
+
+  // ---------- State ----------
+  var state = {
+    user: null,
+    name: '',
+    room: DEFAULT_ROOM,
+    roomDisplayName: DEFAULT_ROOM_NAME,
+    roomKey: '',
+    replyingTo: null,    // { id: string, author: string, text: string }
+    clearedAt: 0,        // timestamp before which messages are hidden locally
+    cryptoKey: null,     // AES-256-GCM derived key for private room E2EE
+    lastReadAckTs: 0,    // highest timestamp acknowledged by active peers
+    peerCount: 0,        // number of participants currently active in room
+    msgs: new Map(),
+    oldestRaw: null,
+    hasMore: false,
+    loadingOlder: false,
+    ready: false,
+    buffer: [],
+    channel: null,
+    everSubscribed: false,
+    seq: 0,
+  };
+
   // ---------- Storage Helpers ----------
   function store(key, value) {
     try {
@@ -1670,30 +1695,6 @@
     return cfg.SUPABASE_URL && cfg.SUPABASE_PUBLISHABLE_KEY &&
       !/YOUR_/.test(cfg.SUPABASE_URL) && !/YOUR_/.test(cfg.SUPABASE_PUBLISHABLE_KEY);
   }
-
-  var sb = null;
-
-  // ---------- State ----------
-  var state = {
-    user: null,
-    name: '',
-    room: DEFAULT_ROOM,
-    roomDisplayName: DEFAULT_ROOM_NAME,
-    roomKey: '',
-    clearedAt: 0,        // timestamp before which messages are hidden locally
-    cryptoKey: null,     // AES-256-GCM derived key for private room E2EE
-    lastReadAckTs: 0,    // highest timestamp acknowledged by active peers
-    peerCount: 0,        // number of participants currently active in room
-    msgs: new Map(),
-    oldestRaw: null,
-    hasMore: false,
-    loadingOlder: false,
-    ready: false,
-    buffer: [],
-    channel: null,
-    everSubscribed: false,
-    seq: 0,
-  };
 
   function toMsg(row) {
     var rawContent = row.content || '';
