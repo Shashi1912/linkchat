@@ -357,24 +357,69 @@
   });
   updateThemeIcon(currentTheme());
 
+  function unlockAudio() {
+    try {
+      var ctx = getAudioContext();
+      if (ctx && ctx.state === 'suspended') {
+        ctx.resume().catch(function () {});
+      }
+    } catch (e) {}
+  }
+  window.addEventListener('pointerdown', unlockAudio, { passive: true });
+  window.addEventListener('keydown', unlockAudio, { passive: true });
+  window.addEventListener('touchstart', unlockAudio, { passive: true });
+
   // ---------- Message Notifications System ----------
   var unreadCount = 0;
+
+  // Register Service Worker for Mobile (Android Chrome) & Desktop notification support
+  if ('serviceWorker' in navigator && (location.protocol === 'https:' || location.hostname === 'localhost' || location.hostname === '127.0.0.1')) {
+    navigator.serviceWorker.register('./sw.js').catch(function (e) {
+      console.warn('SW register error:', e);
+    });
+  }
 
   function updateNotifButtonUI() {
     if (!ui.notifDot) return;
     if (!('Notification' in window)) {
-      ui.notifBtn.hidden = true;
+      ui.notifBtn.hidden = false;
+      ui.notifDot.className = 'status-dot muted';
+      ui.notifBtn.title = 'Web notifications not supported in this browser';
       return;
     }
     if (Notification.permission === 'granted') {
       ui.notifDot.className = 'status-dot active';
-      ui.notifBtn.title = 'Notifications enabled';
+      ui.notifBtn.title = 'Notifications enabled (Click to test)';
     } else if (Notification.permission === 'denied') {
       ui.notifDot.className = 'status-dot muted';
-      ui.notifBtn.title = 'Notifications blocked in browser settings';
+      ui.notifBtn.title = 'Notifications blocked (Enable in browser site permissions)';
     } else {
       ui.notifDot.className = 'status-dot';
       ui.notifBtn.title = 'Click to enable notifications';
+    }
+  }
+
+  async function sendSystemNotification(title, options) {
+    if (!('Notification' in window) || Notification.permission !== 'granted') return;
+    try {
+      // 1. Android Chrome requires ServiceWorkerRegistration.showNotification()
+      if ('serviceWorker' in navigator) {
+        try {
+          var reg = await navigator.serviceWorker.getRegistration();
+          if (reg && reg.showNotification) {
+            await reg.showNotification(title, options);
+            return;
+          }
+        } catch (e) {}
+      }
+      // 2. Standard desktop Notification
+      var n = new Notification(title, options);
+      n.onclick = function () {
+        window.focus();
+        n.close();
+      };
+    } catch (err) {
+      console.warn('System notification error:', err);
     }
   }
 
@@ -383,24 +428,57 @@
       toast('Notifications are not supported in this browser.');
       return;
     }
+
     if (Notification.permission === 'granted') {
-      toast('Notifications are already active.');
+      playReceiveSound();
+      toast('Notifications active! Sent a test ping 🔔');
+      sendSystemNotification('LinkChat', {
+        body: 'Notifications are active and working!',
+        icon: 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"%3E%3Crect width="24" height="24" rx="7" fill="%23007aff"/%3E%3Cpath d="M7 8.5h10M7 12.5h6" stroke="white" stroke-width="2" stroke-linecap="round"/%3E%3C/svg%3E',
+        tag: 'linkchat-test'
+      });
+      showInAppBanner('LinkChat', 'Notifications are active and working! 🔔');
       return;
     }
+
     if (Notification.permission === 'denied') {
-      toast('Notifications blocked. Enable in site permissions.');
+      toast('Notifications blocked. Click the lock icon in address bar to allow.');
       return;
     }
+
     try {
-      var perm = await Notification.requestPermission();
-      updateNotifButtonUI();
-      if (perm === 'granted') {
-        toast('Notifications enabled! 🎉');
+      var perm = await new Promise(function (resolve) {
         try {
-          new Notification('LinkChat', { body: 'Notifications are now active!', silent: true });
-        } catch (e) {}
+          var p = Notification.requestPermission(function (result) {
+            resolve(result || Notification.permission);
+          });
+          if (p && typeof p.then === 'function') {
+            p.then(function (result) {
+              resolve(result || Notification.permission);
+            });
+          }
+        } catch (e) {
+          resolve(Notification.permission);
+        }
+      });
+
+      updateNotifButtonUI();
+
+      if (perm === 'granted' || Notification.permission === 'granted') {
+        toast('Notifications enabled! 🎉');
+        playReceiveSound();
+        sendSystemNotification('LinkChat', {
+          body: 'Notifications are now active for ' + (state.roomDisplayName || 'chat') + '!',
+          icon: 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"%3E%3Crect width="24" height="24" rx="7" fill="%23007aff"/%3E%3Cpath d="M7 8.5h10M7 12.5h6" stroke="white" stroke-width="2" stroke-linecap="round"/%3E%3C/svg%3E',
+          tag: 'linkchat-welcome'
+        });
+        showInAppBanner('LinkChat', 'Notifications enabled! 🎉');
+      } else {
+        toast('Notification permission was not granted.');
       }
-    } catch (e) {}
+    } catch (e) {
+      console.warn('requestNotificationPermission error:', e);
+    }
   }
 
   if (ui.notifBtn) {
@@ -412,9 +490,13 @@
   var bannerTimer = null;
   function showInAppBanner(displayName, text) {
     if (!ui.banner) return;
-    ui.bannerSender.textContent = displayName;
+    ui.bannerSender.textContent = displayName || 'User';
     ui.bannerText.textContent = text || 'Sent a photo';
     ui.bannerAvatar.textContent = (displayName && displayName[0] ? displayName[0].toUpperCase() : '💬');
+
+    ui.banner.classList.remove('banner-pop');
+    void ui.banner.offsetWidth; // trigger CSS animation reflow
+    ui.banner.classList.add('banner-pop');
     ui.banner.hidden = false;
 
     clearTimeout(bannerTimer);
@@ -426,34 +508,53 @@
   if (ui.bannerPill) {
     ui.bannerPill.addEventListener('click', function () {
       ui.banner.hidden = true;
+      if (ui.chat && ui.chat.hidden) {
+        show('chat');
+      }
       scrollToBottom();
     });
   }
 
-  function notifyIncomingMessage(displayName, content) {
+  async function notifyIncomingMessage(displayName, rawContent) {
     playReceiveSound();
 
-    if (document.hidden) {
+    var plainText = rawContent || '';
+    if (E2EE.isEncrypted(rawContent)) {
+      if (decryptedCache.has(rawContent)) {
+        plainText = decryptedCache.get(rawContent);
+      } else if (state.cryptoKey) {
+        try {
+          plainText = await E2EE.decryptText(state.cryptoKey, rawContent);
+          decryptedCache.set(rawContent, plainText);
+        } catch (e) {
+          plainText = '🔒 [Encrypted Message]';
+        }
+      } else {
+        plainText = '🔒 [Encrypted Message]';
+      }
+    }
+
+    var bodyText = plainText || 'Sent a photo';
+
+    // Check if the chat tab is unfocused or hidden (e.g. user in another window, app, or tab)
+    var isUnfocused = document.hidden || (typeof document.hasFocus === 'function' && !document.hasFocus());
+
+    if (isUnfocused) {
       unreadCount++;
       document.title = '(' + unreadCount + ') LinkChat';
 
-      if ('Notification' in window && Notification.permission === 'granted') {
-        try {
-          var n = new Notification(displayName + ' (' + state.roomDisplayName + ')', {
-            body: content || 'Sent an image',
-            icon: 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"%3E%3Crect width="24" height="24" rx="7" fill="%23007aff"/%3E%3Cpath d="M7 8.5h10M7 12.5h6" stroke="white" stroke-width="2" stroke-linecap="round"/%3E%3C/svg%3E',
-            tag: 'linkchat-' + state.room,
-          });
-          n.onclick = function () {
-            window.focus();
-            n.close();
-          };
-        } catch (e) {}
-      }
-    } else {
-      if (!nearBottom()) {
-        showInAppBanner(displayName, content);
-      }
+      sendSystemNotification(displayName + ' (' + (state.roomDisplayName || state.room) + ')', {
+        body: bodyText,
+        icon: 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"%3E%3Crect width="24" height="24" rx="7" fill="%23007aff"/%3E%3Cpath d="M7 8.5h10M7 12.5h6" stroke="white" stroke-width="2" stroke-linecap="round"/%3E%3C/svg%3E',
+        badge: 'data:image/svg+xml,%3Csvg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24"%3E%3Crect width="24" height="24" rx="7" fill="%23007aff"/%3E%3Cpath d="M7 8.5h10M7 12.5h6" stroke="white" stroke-width="2" stroke-linecap="round"/%3E%3C/svg%3E',
+        tag: 'linkchat-' + state.room,
+        renotify: true,
+      });
+    }
+
+    // Always show the in-app Dynamic Island banner if user is unfocused or not scrolled to bottom
+    if (isUnfocused || !nearBottom()) {
+      showInAppBanner(displayName, bodyText);
     }
   }
 
@@ -1270,15 +1371,17 @@
 
   // ---------- Smart Link Sharing (with key) ----------
   ui.copyBtn.addEventListener('click', async function () {
-    var url = location.origin + location.pathname;
-    if (state.room !== 'general') {
-      url += '?room=' + encodeURIComponent(state.room);
-      if (state.roomKey) {
-        url += '&key=' + encodeURIComponent(state.roomKey);
-      }
+    var base = location.href.split('?')[0].split('#')[0];
+    var url = base + '?room=' + encodeURIComponent(state.room || 'general');
+    if (state.roomKey) {
+      url += '&key=' + encodeURIComponent(state.roomKey);
     }
     try {
-      await navigator.clipboard.writeText(url);
+      if (navigator.clipboard && navigator.clipboard.writeText) {
+        await navigator.clipboard.writeText(url);
+      } else {
+        throw new Error('Clipboard API not available');
+      }
     } catch (e) {
       var ta = el('textarea');
       ta.value = url;
@@ -1287,7 +1390,7 @@
       document.execCommand('copy');
       ta.remove();
     }
-    toast(state.room === 'general' ? 'Chat link copied!' : 'Private room link copied (with key)!');
+    toast(state.room === 'general' ? 'Chat link copied! 📋' : 'Private room link copied (with key)! 📋');
   });
 
   // ---------- Clear Chat Feature (§16 Agency & Forgiveness) ----------
@@ -2187,6 +2290,14 @@
     state.buffer = [];
     render('bottom');
     ui.input.focus();
+
+    if ('Notification' in window && Notification.permission === 'default') {
+      setTimeout(function () {
+        if (state.room && Notification.permission === 'default') {
+          toast('Tip: Tap 🔔 in header to enable message notifications');
+        }
+      }, 2500);
+    }
   }
 
   async function tryAutoJoinFromUrl() {
@@ -2306,6 +2417,18 @@
 
       if (urlRoom) {
         await tryAutoJoinFromUrl();
+      } else if (savedRoom) {
+        if (savedRoom === 'general' || savedRoom === DEFAULT_ROOM) {
+          joinGeneral();
+        } else if (savedRoomKey) {
+          try {
+            await joinPrivateRoom(savedRoom, savedRoomKey);
+          } catch (e) {
+            showRoomPicker();
+          }
+        } else {
+          showRoomPicker();
+        }
       } else {
         showRoomPicker();
       }

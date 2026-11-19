@@ -165,14 +165,19 @@ button:active, .room-btn-apple:active, .segment-tab:active {
 
 /* ---------- Dynamic Island / In-App Banner ---------- */
 .apple-banner {
-  position: absolute;
+  position: fixed;
   top: max(12px, env(safe-area-inset-top));
   left: 0;
   right: 0;
-  z-index: 100;
+  z-index: 1000;
   display: flex;
   justify-content: center;
   pointer-events: none;
+  animation: bannerSlideDown 0.4s var(--apple-spring-bounce) forwards;
+}
+
+.apple-banner.banner-pop {
+  animation: none;
   animation: bannerSlideDown 0.4s var(--apple-spring-bounce) forwards;
 }
 
