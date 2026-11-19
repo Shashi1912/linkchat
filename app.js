@@ -869,6 +869,9 @@
       sendReadAck();
       notifyIncomingMessage(row.display_name, row.content);
     }
+    if (state.room && row && row.room_id === state.room) {
+      markRoomAsRead(state.room);
+    }
   }
 
   function updatePresence() {
@@ -1583,6 +1586,7 @@
     store(ROOM_KEY, 'general');
     store(ROOM_NAME_KEY, DEFAULT_ROOM_NAME);
     store(ROOM_KEY_PASS, null);
+    markRoomAsRead('general');
     enterChat();
   }
 
@@ -1600,6 +1604,7 @@
     store(ROOM_NAME_KEY, state.roomDisplayName);
     store(ROOM_KEY_PASS, key);
     store('linkchat.roomKey_' + roomId, key);
+    markRoomAsRead(roomId);
     enterChat();
   }
 
@@ -1669,12 +1674,26 @@
 
   // ---------- Room Views & Apple Dropdown ----------
   var currentSelectedRoom = { id: 'general', name: 'General Chat', isPrivate: false };
-  var latestMsgCounts = {};
+  var unreadCountsByRoom = {};
+
+  function markRoomAsRead(roomId) {
+    if (!roomId) return;
+    store('linkchat.lastRead_' + roomId, String(Date.now()));
+    unreadCountsByRoom[roomId] = 0;
+  }
+
+  function getRoomLastRead(roomId) {
+    if (!roomId) return 0;
+    var saved = load('linkchat.lastRead_' + roomId);
+    if (saved) return parseInt(saved, 10);
+    var firstJoin = load('linkchat.firstJoinTs');
+    return firstJoin ? parseInt(firstJoin, 10) : 0;
+  }
 
   function formatMsgCount(count) {
-    if (!count || count <= 0) return '0 msgs';
-    if (count === 1) return '1 msg';
-    return count + ' msgs';
+    if (!count || count <= 0) return '';
+    if (count === 1) return '1 unread';
+    return count + ' unread';
   }
 
   function setRoomViewMode(mode) {
@@ -1697,10 +1716,10 @@
     if (ui.dropdownTriggerName) {
       ui.dropdownTriggerName.textContent = roomName || roomId;
     }
-    var count = latestMsgCounts[roomId] || 0;
-    var countStr = ' • ' + formatMsgCount(count);
+    var count = unreadCountsByRoom[roomId] || 0;
+    var countStr = count > 0 ? (' • <strong class="unread-text">' + count + ' unread</strong>') : '';
     if (ui.dropdownTriggerSub) {
-      ui.dropdownTriggerSub.textContent = (isPrivate ? ('#' + roomId) : 'Public Community Room') + countStr;
+      ui.dropdownTriggerSub.innerHTML = (isPrivate ? ('#' + roomId) : 'Public Community Room') + countStr;
     }
     if (ui.dropdownTriggerAvatar) {
       ui.dropdownTriggerAvatar.textContent = isPrivate ? (roomName || roomId).charAt(0).toUpperCase() : '💬';
@@ -1835,7 +1854,7 @@
     if (dropList) dropList.innerHTML = '<div class="rooms-loading">Loading rooms…</div>';
 
     var rooms = [];
-    latestMsgCounts = {};
+    unreadCountsByRoom = {};
 
     try {
       var res = await sb.from('rooms').select('id, name, created_at').order('created_at', { ascending: false });
@@ -1847,25 +1866,50 @@
     }
 
     try {
-      var countRes = await sb.from('messages').select('room_id');
+      // Fetch recent messages to calculate unread message counts per room
+      var countRes = await sb.from('messages')
+        .select('room_id, created_at, user_id')
+        .order('created_at', { ascending: false })
+        .limit(600);
+
       if (!countRes.error && countRes.data) {
+        var myUserId = state.user && state.user.id;
         countRes.data.forEach(function (m) {
-          if (m && m.room_id) {
-            latestMsgCounts[m.room_id] = (latestMsgCounts[m.room_id] || 0) + 1;
+          if (!m || !m.room_id) return;
+          if (myUserId && m.user_id === myUserId) return; // Own messages never count as unread
+
+          var lastRead = getRoomLastRead(m.room_id);
+          var msgTs = Date.parse(m.created_at);
+
+          // Only messages sent after the user last read the room count as unread
+          if (lastRead > 0) {
+            if (msgTs > lastRead) {
+              unreadCountsByRoom[m.room_id] = (unreadCountsByRoom[m.room_id] || 0) + 1;
+            }
           }
         });
       }
     } catch (e) {
-      console.warn('Could not load message counts:', e);
+      console.warn('Could not load unread message counts:', e);
     }
 
-    renderRoomsDirectory(rooms, latestMsgCounts);
+    // Active room has 0 unread
+    if (state.room) {
+      unreadCountsByRoom[state.room] = 0;
+    }
+
+    renderRoomsDirectory(rooms, unreadCountsByRoom);
   }
 
   function renderRoomsDirectory(rooms, msgCounts) {
-    msgCounts = msgCounts || latestMsgCounts || {};
+    msgCounts = msgCounts || unreadCountsByRoom || {};
     var genCount = msgCounts['general'] || 0;
-    var genCountText = formatMsgCount(genCount);
+    var genSub = genCount > 0
+      ? 'Public community room • <strong class="unread-text">' + genCount + ' unread</strong>'
+      : 'Public community room';
+    var genBadgeHtml = genCount > 0
+      ? '<span class="room-tile-count-badge unread" title="' + genCount + ' unread messages">● ' + genCount + ' new</span>'
+      : '';
 
     // 1. Populate Tiles view
     var tilesContainer = $('rooms-list-container');
@@ -1884,9 +1928,9 @@
         '</div>' +
         '<div class="room-tile-meta">' +
           '<strong>General Chat</strong>' +
-          '<small>Public community room • ' + genCountText + '</small>' +
+          '<small>' + genSub + '</small>' +
         '</div>' +
-        '<span class="room-tile-count-badge ' + (genCount > 0 ? '' : 'zero') + '" title="' + genCount + ' messages">💬 ' + genCount + '</span>' +
+        genBadgeHtml +
         '<span class="room-tile-badge public">OPEN</span>';
       genTile.onclick = function () { joinGeneral(); };
       tilesContainer.appendChild(genTile);
@@ -1898,14 +1942,18 @@
           var initial = (r.name || r.id || 'R').charAt(0).toUpperCase();
           var hasKey = Boolean(load('linkchat.roomKey_' + r.id));
           var rCount = msgCounts[r.id] || 0;
-          var rCountText = formatMsgCount(rCount);
+          var rSub = '#' + escapeHtml(r.id) + (rCount > 0 ? (' • <strong class="unread-text">' + rCount + ' unread</strong>') : '');
+          var rBadgeHtml = rCount > 0
+            ? '<span class="room-tile-count-badge unread" title="' + rCount + ' unread messages">● ' + rCount + ' new</span>'
+            : '';
+
           card.innerHTML =
             '<div class="room-tile-avatar private">' + escapeHtml(initial) + '</div>' +
             '<div class="room-tile-meta">' +
               '<strong>' + escapeHtml(r.name || r.id) + '</strong>' +
-              '<small>#' + escapeHtml(r.id) + ' • ' + rCountText + '</small>' +
+              '<small>' + rSub + '</small>' +
             '</div>' +
-            '<span class="room-tile-count-badge ' + (rCount > 0 ? '' : 'zero') + '" title="' + rCount + ' messages">💬 ' + rCount + '</span>' +
+            rBadgeHtml +
             (hasKey
               ? '<span class="room-tile-badge public">ENTER</span>'
               : '<span class="room-tile-badge locked">🔒 KEY</span>') +
@@ -1944,9 +1992,9 @@
         '<div class="dropdown-item-avatar" style="background: var(--apple-blue-gradient);">💬</div>' +
         '<div class="dropdown-item-meta">' +
           '<strong>General Chat</strong>' +
-          '<small>Public community room • ' + genCountText + '</small>' +
+          '<small>' + genSub + '</small>' +
         '</div>' +
-        '<span class="room-tile-count-badge ' + (genCount > 0 ? '' : 'zero') + '">💬 ' + genCount + '</span>';
+        (genCount > 0 ? ('<span class="room-tile-count-badge unread">● ' + genCount + '</span>') : '');
       genItem.onclick = function () {
         selectDropdownRoom('general', 'General Chat', false);
         toggleDropdown(false);
@@ -1958,7 +2006,7 @@
           var initial = (r.name || r.id || 'R').charAt(0).toUpperCase();
           var hasKey = Boolean(load('linkchat.roomKey_' + r.id));
           var rCount = msgCounts[r.id] || 0;
-          var rCountText = formatMsgCount(rCount);
+          var rSub = '#' + escapeHtml(r.id) + (rCount > 0 ? (' • <strong class="unread-text">' + rCount + ' unread</strong>') : (hasKey ? ' • Key Saved' : ' • 🔒 Key Required'));
           var row = document.createElement('div');
           row.style.display = 'flex';
           row.style.alignItems = 'center';
@@ -1973,9 +2021,9 @@
             '<div class="dropdown-item-avatar" style="background: linear-gradient(135deg, #af52de, #5856d6);">' + escapeHtml(initial) + '</div>' +
             '<div class="dropdown-item-meta">' +
               '<strong>' + escapeHtml(r.name || r.id) + '</strong>' +
-              '<small>#' + escapeHtml(r.id) + ' • ' + rCountText + (hasKey ? ' • Key Saved' : ' • 🔒 Key Required') + '</small>' +
+              '<small>' + rSub + '</small>' +
             '</div>' +
-            '<span class="room-tile-count-badge ' + (rCount > 0 ? '' : 'zero') + '" style="margin-right: 6px;">💬 ' + rCount + '</span>';
+            (rCount > 0 ? ('<span class="room-tile-count-badge unread" style="margin-right: 6px;">● ' + rCount + '</span>') : '');
           itemBtn.onclick = function () {
             selectDropdownRoom(r.id, r.name || r.id, true);
             toggleDropdown(false);
@@ -2195,6 +2243,9 @@
   }
 
   function showRoomPicker() {
+    if (state.room) {
+      markRoomAsRead(state.room);
+    }
     if (ui.roomIdInput) ui.roomIdInput.value = '';
     if (ui.roomKeyInput) ui.roomKeyInput.value = '';
     if (ui.roomJoinError) ui.roomJoinError.textContent = '';
@@ -2227,6 +2278,9 @@
   }
 
   function leaveChat() {
+    if (state.room) {
+      markRoomAsRead(state.room);
+    }
     stopTypingSignal();
     activeTypers = new Map();
     updateTypingUI();
@@ -2244,6 +2298,7 @@
 
   async function enterChat() {
     show('chat');
+    markRoomAsRead(state.room);
     ui.roomName.textContent = state.roomDisplayName;
     if (ui.roomsBtn) ui.roomsBtn.hidden = !PRIVATE_ROOMS;
     if (ui.deleteCurrentRoomBtn) {
