@@ -2226,21 +2226,95 @@
     enterChat();
   }
 
+  // Security: Brute-Force & Rate-Limiting Protection for Private Rooms
+  var RoomSecurity = (function () {
+    var failedAttempts = {}; // roomId -> { count: number, lockedUntil: number }
+
+    function getLockRemaining(roomId) {
+      if (!roomId) return 0;
+      var entry = failedAttempts[roomId];
+      if (!entry || !entry.lockedUntil) return 0;
+      var remaining = Math.ceil((entry.lockedUntil - Date.now()) / 1000);
+      if (remaining <= 0) {
+        entry.lockedUntil = 0;
+        return 0;
+      }
+      return remaining;
+    }
+
+    function recordFailure(roomId) {
+      if (!roomId) return 0;
+      if (!failedAttempts[roomId]) {
+        failedAttempts[roomId] = { count: 0, lockedUntil: 0 };
+      }
+      failedAttempts[roomId].count++;
+      var count = failedAttempts[roomId].count;
+      if (count >= 5) {
+        failedAttempts[roomId].lockedUntil = Date.now() + 60000; // 60s lockout
+      } else if (count >= 4) {
+        failedAttempts[roomId].lockedUntil = Date.now() + 30000; // 30s lockout
+      } else if (count >= 3) {
+        failedAttempts[roomId].lockedUntil = Date.now() + 15000; // 15s lockout
+      }
+      return getLockRemaining(roomId);
+    }
+
+    function recordSuccess(roomId) {
+      if (roomId) delete failedAttempts[roomId];
+    }
+
+    return {
+      getLockRemaining: getLockRemaining,
+      recordFailure: recordFailure,
+      recordSuccess: recordSuccess
+    };
+  })();
+
+  function clearStoredRoomKeys() {
+    try {
+      store(ROOM_KEY_PASS, null);
+      var toRemove = [];
+      for (var i = 0; i < localStorage.length; i++) {
+        var k = localStorage.key(i);
+        if (k && (k.indexOf('linkchat.roomKey_') === 0 || k === ROOM_KEY_PASS)) {
+          toRemove.push(k);
+        }
+      }
+      toRemove.forEach(function (k) { localStorage.removeItem(k); });
+    } catch (e) {}
+  }
+
   async function joinPrivateRoom(roomId, key) {
+    var lockSec = RoomSecurity.getLockRemaining(roomId);
+    if (lockSec > 0) {
+      throw new Error('Security lockout: Too many failed attempts. Please wait ' + lockSec + 's.');
+    }
+
     var res = await sb.rpc('join_room', { p_room_id: roomId, p_access_key: key });
-    if (res.error) throw res.error;
+    if (res.error) {
+      RoomSecurity.recordFailure(roomId);
+      throw res.error;
+    }
     var data = res.data;
     if (!data.ok) {
+      RoomSecurity.recordFailure(roomId);
       throw new Error(data.error || 'Could not join room.');
     }
+    RoomSecurity.recordSuccess(roomId);
     state.room = roomId;
     state.roomDisplayName = data.room_name || roomId;
-    state.roomKey = key;
-    store(ROOM_KEY, roomId);
-    store(ROOM_NAME_KEY, state.roomDisplayName);
-    store(ROOM_KEY_PASS, key);
-    store('linkchat.roomKey_' + roomId, key);
+    state.roomKey = key; // In-memory only — never written to disk or localStorage!
     markRoomAsRead(roomId);
+
+    // Security: Immediately scrub secret key from URL so it is never exposed in address bar or history
+    try {
+      var u = new URL(window.location.href);
+      if (u.searchParams.has('key')) {
+        u.searchParams.delete('key');
+        window.history.replaceState({}, '', u.toString());
+      }
+    } catch (e) {}
+
     enterChat();
   }
 
@@ -2252,13 +2326,30 @@
       ui.roomJoinError.textContent = '';
 
       if (!roomId) { ui.roomJoinError.textContent = 'Enter a room ID.'; return; }
+
+      var lockSec = RoomSecurity.getLockRemaining(roomId);
+      if (lockSec > 0) {
+        ui.roomJoinError.textContent = '🔒 Security lockout: Too many failed attempts. Try again in ' + lockSec + 's.';
+        return;
+      }
+
       if (!key) { ui.roomJoinError.textContent = 'Enter the access key.'; return; }
 
       setBtnState(ui.roomJoinBtn, true, 'Join Private Room', 'Joining…');
       try {
         await joinPrivateRoom(roomId, key);
+        if (ui.roomKeyInput) ui.roomKeyInput.value = '';
       } catch (err) {
-        ui.roomJoinError.textContent = friendlyError(err);
+        if (ui.roomKeyInput) {
+          ui.roomKeyInput.value = '';
+          ui.roomKeyInput.focus();
+        }
+        var rem = RoomSecurity.getLockRemaining(roomId);
+        if (rem > 0) {
+          ui.roomJoinError.textContent = '🔒 Incorrect key. Locked for ' + rem + 's due to repeated failures.';
+        } else {
+          ui.roomJoinError.textContent = friendlyError(err);
+        }
         setBtnState(ui.roomJoinBtn, false, 'Join Private Room');
       }
     });
@@ -2289,11 +2380,8 @@
         toast('Room created! Share link with your team.');
         state.room = roomId;
         state.roomDisplayName = roomName;
-        state.roomKey = key;
-        store(ROOM_KEY, roomId);
-        store(ROOM_NAME_KEY, roomName);
-        store(ROOM_KEY_PASS, key);
-        store('linkchat.roomKey_' + roomId, key);
+        state.roomKey = key; // In-memory only!
+        if (ui.newRoomKey) ui.newRoomKey.value = '';
         enterChat();
       } catch (err) {
         ui.createRoomError.textContent = friendlyError(err);
@@ -2410,9 +2498,8 @@
     if (ui.deleteRoomDesc) {
       ui.deleteRoomDesc.textContent = 'Permanently delete "' + (roomName || roomId) + '" (#' + roomId + ') and all of its messages? This action cannot be undone.';
     }
-    var savedKey = load('linkchat.roomKey_' + roomId) || (state.room === roomId ? state.roomKey : '');
     if (ui.deleteRoomKeyInput) {
-      ui.deleteRoomKeyInput.value = savedKey || '';
+      ui.deleteRoomKeyInput.value = '';
     }
     if (ui.deleteKeyGroup) {
       ui.deleteKeyGroup.hidden = false;
@@ -2576,7 +2663,6 @@
           var card = document.createElement('div');
           card.className = 'room-tile-card';
           var initial = (r.name || r.id || 'R').charAt(0).toUpperCase();
-          var hasKey = Boolean(load('linkchat.roomKey_' + r.id));
           var rCount = msgCounts[r.id] || 0;
           var rSub = '#' + escapeHtml(r.id) + (rCount > 0 ? (' • <strong class="unread-text">' + rCount + ' unread</strong>') : '');
           var rBadgeHtml = rCount > 0
@@ -2590,9 +2676,7 @@
               '<small>' + rSub + '</small>' +
             '</div>' +
             rBadgeHtml +
-            (hasKey
-              ? '<span class="room-tile-badge public">ENTER</span>'
-              : '<span class="room-tile-badge locked">🔒 KEY</span>') +
+            '<span class="room-tile-badge locked">🔒 KEY</span>' +
             '<button type="button" class="btn-tile-delete" title="Delete room" aria-label="Delete room ' + escapeHtml(r.name || r.id) + '">' +
               '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
                 '<polyline points="3 6 5 6 21 6"></polyline>' +
@@ -2640,9 +2724,8 @@
       if (rooms && rooms.length) {
         rooms.forEach(function (r) {
           var initial = (r.name || r.id || 'R').charAt(0).toUpperCase();
-          var hasKey = Boolean(load('linkchat.roomKey_' + r.id));
           var rCount = msgCounts[r.id] || 0;
-          var rSub = '#' + escapeHtml(r.id) + (rCount > 0 ? (' • <strong class="unread-text">' + rCount + ' unread</strong>') : (hasKey ? ' • Key Saved' : ' • 🔒 Key Required'));
+          var rSub = '#' + escapeHtml(r.id) + (rCount > 0 ? (' • <strong class="unread-text">' + rCount + ' unread</strong>') : ' • 🔒 Key Required');
           var row = document.createElement('div');
           row.style.display = 'flex';
           row.style.alignItems = 'center';
@@ -2693,15 +2776,7 @@
   }
 
   function handleRoomTileClick(roomId, roomName) {
-    var savedKey = load('linkchat.roomKey_' + roomId);
-    if (savedKey) {
-      toast('Entering ' + roomName + '…');
-      joinPrivateRoom(roomId, savedKey).catch(function () {
-        openKeyModal(roomId, roomName);
-      });
-    } else {
-      openKeyModal(roomId, roomName);
-    }
+    openKeyModal(roomId, roomName);
   }
 
   var pendingKeyRoomId = null;
@@ -2712,10 +2787,27 @@
     var desc = $('key-modal-desc');
     var input = $('key-modal-input');
     var err = $('key-modal-error');
+    var confirmBtn = $('key-modal-confirm-btn');
+
     if (title) title.textContent = 'Join ' + (roomName || roomId);
     if (desc) desc.textContent = 'Enter the access key for #' + roomId + ' to enter.';
     if (input) input.value = '';
     if (err) err.textContent = '';
+
+    var lockSec = RoomSecurity.getLockRemaining(roomId);
+    if (lockSec > 0) {
+      if (err) err.textContent = '🔒 Security lockout: Too many failed attempts. Try again in ' + lockSec + 's.';
+      if (confirmBtn) {
+        confirmBtn.disabled = true;
+        confirmBtn.textContent = 'Locked (' + lockSec + 's)';
+      }
+    } else {
+      if (confirmBtn) {
+        confirmBtn.disabled = false;
+        confirmBtn.textContent = 'Join Room';
+      }
+    }
+
     if (modal) modal.hidden = false;
     if (input) setTimeout(function () { input.focus(); }, 100);
   }
@@ -2723,6 +2815,10 @@
   function closeKeyModal() {
     var modal = $('key-modal');
     if (modal) modal.hidden = true;
+    var input = $('key-modal-input');
+    if (input) input.value = '';
+    var err = $('key-modal-error');
+    if (err) err.textContent = '';
     pendingKeyRoomId = null;
   }
 
@@ -2734,20 +2830,49 @@
       var err = $('key-modal-error');
       var confirmBtn = $('key-modal-confirm-btn');
       var key = (keyInput && keyInput.value || '').trim();
+
+      if (!pendingKeyRoomId) return;
+
+      var lockSec = RoomSecurity.getLockRemaining(pendingKeyRoomId);
+      if (lockSec > 0) {
+        if (err) err.textContent = '🔒 Security lockout: Too many failed attempts. Try again in ' + lockSec + 's.';
+        if (confirmBtn) {
+          confirmBtn.disabled = true;
+          confirmBtn.textContent = 'Locked (' + lockSec + 's)';
+        }
+        return;
+      }
+
       if (!key) {
         if (err) err.textContent = 'Enter the access key.';
         return;
       }
-      if (!pendingKeyRoomId) return;
 
-      if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = 'Joining…'; }
+      if (confirmBtn) { confirmBtn.disabled = true; confirmBtn.textContent = 'Verifying…'; }
+      if (err) err.textContent = '';
+
       try {
         await joinPrivateRoom(pendingKeyRoomId, key);
         closeKeyModal();
-      } catch (err) {
-        if (err) err.textContent = friendlyError(err);
-      } finally {
-        if (confirmBtn) { confirmBtn.disabled = false; confirmBtn.textContent = 'Join Room'; }
+      } catch (submitErr) {
+        var lockRemaining = RoomSecurity.recordFailure(pendingKeyRoomId);
+        if (keyInput) {
+          keyInput.value = '';
+          keyInput.focus();
+        }
+        if (lockRemaining > 0) {
+          if (err) err.textContent = '🔒 Incorrect key. Locked for ' + lockRemaining + 's due to repeated failures.';
+          if (confirmBtn) {
+            confirmBtn.disabled = true;
+            confirmBtn.textContent = 'Locked (' + lockRemaining + 's)';
+          }
+        } else {
+          if (err) err.textContent = '🔒 Incorrect access key. Please verify and try again.';
+          if (confirmBtn) {
+            confirmBtn.disabled = false;
+            confirmBtn.textContent = 'Join Room';
+          }
+        }
       }
     });
   }
@@ -2883,6 +3008,22 @@
     if (state.room) {
       markRoomAsRead(state.room);
     }
+    clearStoredRoomKeys();
+    state.room = null;
+    state.roomDisplayName = '';
+    state.roomKey = '';
+    state.cryptoKey = null;
+    store(ROOM_KEY, null);
+    store(ROOM_NAME_KEY, null);
+    store(ROOM_KEY_PASS, null);
+
+    try {
+      var u = new URL(window.location.href);
+      u.searchParams.delete('room');
+      u.searchParams.delete('key');
+      window.history.replaceState({}, '', u.toString());
+    } catch (e) {}
+
     if (ui.roomIdInput) ui.roomIdInput.value = '';
     if (ui.roomKeyInput) ui.roomKeyInput.value = '';
     if (ui.roomJoinError) ui.roomJoinError.textContent = '';
@@ -2896,18 +3037,6 @@
     var pName = $('picker-name');
     if (pName) pName.textContent = state.name || 'User';
 
-    var params = new URLSearchParams(window.location.search);
-    var urlRoom = params.get('room');
-    var urlKey = params.get('key');
-    if (urlRoom && ui.roomIdInput) ui.roomIdInput.value = urlRoom;
-    if (urlKey && ui.roomKeyInput) ui.roomKeyInput.value = urlKey;
-
-    if (urlRoom && urlRoom !== 'general') {
-      toggleSubform('join');
-    } else {
-      toggleSubform('none');
-    }
-
     var savedMode = load('linkchat.roomViewMode') || 'dropdown';
     setRoomViewMode(savedMode);
     loadRoomsList();
@@ -2919,6 +3048,22 @@
     if (state.room) {
       markRoomAsRead(state.room);
     }
+    clearStoredRoomKeys();
+    state.room = null;
+    state.roomDisplayName = '';
+    state.roomKey = '';
+    state.cryptoKey = null;
+    store(ROOM_KEY, null);
+    store(ROOM_NAME_KEY, null);
+    store(ROOM_KEY_PASS, null);
+
+    try {
+      var u = new URL(window.location.href);
+      u.searchParams.delete('room');
+      u.searchParams.delete('key');
+      window.history.replaceState({}, '', u.toString());
+    } catch (e) {}
+
     stopTypingSignal();
     activeTypers = new Map();
     updateTypingUI();
@@ -2930,7 +3075,6 @@
     }
     state.msgs = new Map();
     state.ready = false;
-    state.cryptoKey = null;
     if (ui.e2eeBadge) ui.e2eeBadge.hidden = true;
   }
 
@@ -2942,6 +3086,15 @@
     if (ui.deleteCurrentRoomBtn) {
       ui.deleteCurrentRoomBtn.hidden = !PRIVATE_ROOMS || state.room === 'general' || state.room === DEFAULT_ROOM;
     }
+
+    // Security: Immediately scrub secret key from URL address bar so it's not exposed
+    try {
+      var u = new URL(window.location.href);
+      if (u.searchParams.has('key')) {
+        u.searchParams.delete('key');
+        window.history.replaceState({}, '', u.toString());
+      }
+    } catch (e) {}
 
     activeTypers = new Map();
     updateTypingUI();

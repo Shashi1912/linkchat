@@ -6,7 +6,7 @@
   <title>LinkChat</title>
   <meta name="description" content="Instant, secure real-time messaging inspired by Apple design." />
   <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24'%3E%3Crect width='24' height='24' rx='7' fill='%23007aff'/%3E%3Cpath d='M7 8.5h10M7 12.5h6' stroke='white' stroke-width='2' stroke-linecap='round'/%3E%3C/svg%3E" />
-  <link rel="stylesheet" href="style.css?v=3.5" />
+  <link rel="stylesheet" href="style.css?v=3.6" />
   <script>
     // Apply saved theme before paint (prevents dark/light flash)
     try {
@@ -185,7 +185,7 @@
             </div>
             <div class="input-group" style="margin-top: 8px;">
               <label for="room-key-input">Access Key</label>
-              <input id="room-key-input" type="password" maxlength="64" placeholder="Enter secret key" autocomplete="off" />
+              <input id="room-key-input" type="password" maxlength="64" placeholder="Enter secret key" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
             </div>
             <p id="room-join-error" class="form-error" role="alert"></p>
             <div class="subform-actions">
@@ -222,7 +222,7 @@
             </div>
             <div class="input-group" style="margin-top: 8px;">
               <label for="new-room-key">Access Key</label>
-              <input id="new-room-key" type="text" maxlength="64" placeholder="Key required to enter" autocomplete="off" />
+              <input id="new-room-key" type="password" maxlength="64" placeholder="Key required to enter" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
             </div>
             <p id="create-room-error" class="form-error" role="alert"></p>
             <div class="subform-actions">
@@ -500,7 +500,7 @@
       <p id="key-modal-desc" class="apple-modal-desc">This room is private. Enter key to join.</p>
       <form id="key-modal-form" style="width: 100%;" novalidate>
         <div class="input-group" style="margin-bottom: 12px;">
-          <input id="key-modal-input" type="password" maxlength="64" placeholder="Access key" required autocomplete="current-password" />
+          <input id="key-modal-input" type="password" maxlength="64" placeholder="Access key" required autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
         </div>
         <p id="key-modal-error" class="form-error" role="alert" style="margin-bottom: 12px;"></p>
         <div class="apple-modal-actions">
@@ -527,7 +527,7 @@
       <form id="delete-room-form" style="width: 100%;" novalidate>
         <div id="delete-key-group" class="input-group" style="margin-bottom: 12px;" hidden>
           <label for="delete-room-key-input">Enter Access Key to confirm</label>
-          <input id="delete-room-key-input" type="password" maxlength="64" placeholder="Access key" autocomplete="current-password" />
+          <input id="delete-room-key-input" type="password" maxlength="64" placeholder="Access key" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
         </div>
         <p id="delete-room-error" class="form-error" role="alert" style="margin-bottom: 12px;"></p>
         <div class="apple-modal-actions">
@@ -552,6 +552,6 @@
 
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
   <script src="config.js"></script>
-  <script src="app.js?v=3.5"></script>
+  <script src="app.js?v=3.6"></script>
 </body>
 </html>
