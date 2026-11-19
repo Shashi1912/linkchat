@@ -45,6 +45,19 @@
     chat: $('chat'), setup: $('setup'), roomName: $('room-name'), e2eeBadge: $('e2ee-badge'),
     online: $('online'), onlineCount: $('online-count'), onlineList: $('online-list'),
     conn: $('conn'), copyBtn: $('copy-btn'), roomsBtn: $('rooms-btn'),
+    callBtn: $('call-btn'),
+    callIncomingBanner: $('call-incoming-banner'),
+    callIncomingAvatar: $('call-incoming-avatar'),
+    callIncomingCaller: $('call-incoming-caller'),
+    callAcceptBtn: $('call-accept-btn'),
+    callDeclineBtn: $('call-decline-btn'),
+    callActiveBar: $('call-active-bar'),
+    callActiveName: $('call-active-name'),
+    callActiveTimer: $('call-active-timer'),
+    callMuteBtn: $('call-mute-btn'),
+    callMicIcon: $('call-mic-icon'),
+    callHangupBtn: $('call-hangup-btn'),
+    remoteAudio: $('remote-audio'),
     deleteCurrentRoomBtn: $('delete-current-room-btn'),
     clearBtn: $('clear-btn'), clearModal: $('clear-modal'),
     clearConfirmBtn: $('clear-confirm-btn'), clearCancelBtn: $('clear-cancel-btn'),
@@ -562,6 +575,607 @@
     unreadCount = 0;
     document.title = 'LinkChat';
   });
+
+  // =========================================================================
+  // Apple WebRTC Voice Calling Engine
+  // =========================================================================
+  var CallManager = (function () {
+    var stateCall = 'IDLE'; // 'IDLE' | 'OUTGOING' | 'INCOMING' | 'CONNECTED'
+    var activeCallId = null;
+    var peerId = null;
+    var peerName = '';
+    var pc = null;
+    var localStream = null;
+    var isMuted = false;
+    var timerInterval = null;
+    var callStartTs = 0;
+    var autoCancelTimer = null;
+    var candidateQueue = [];
+    var ringInterval = null;
+
+    var rtcConfig = {
+      iceServers: [
+        { urls: 'stun:stun.l.google.com:19302' },
+        { urls: 'stun:stun1.l.google.com:19302' }
+      ]
+    };
+
+    function startOutgoingRing() {
+      stopRingtone();
+      function playDoubleBeep() {
+        try {
+          var ctx = getAudioContext();
+          if (!ctx) return;
+          var now = ctx.currentTime;
+          var osc1 = ctx.createOscillator();
+          var osc2 = ctx.createOscillator();
+          var gain = ctx.createGain();
+
+          osc1.type = 'sine'; osc2.type = 'sine';
+          osc1.frequency.setValueAtTime(440, now);
+          osc2.frequency.setValueAtTime(480, now);
+
+          gain.gain.setValueAtTime(0.001, now);
+          gain.gain.exponentialRampToValueAtTime(0.08, now + 0.05);
+          gain.gain.setValueAtTime(0.08, now + 1.2);
+          gain.gain.exponentialRampToValueAtTime(0.001, now + 1.3);
+
+          osc1.connect(gain);
+          osc2.connect(gain);
+          gain.connect(ctx.destination);
+
+          osc1.start(now); osc2.start(now);
+          osc1.stop(now + 1.35); osc2.stop(now + 1.35);
+        } catch (e) {}
+      }
+      playDoubleBeep();
+      ringInterval = setInterval(playDoubleBeep, 3500);
+    }
+
+    function startIncomingRing() {
+      stopRingtone();
+      function playChime() {
+        try {
+          var ctx = getAudioContext();
+          if (!ctx) return;
+          var now = ctx.currentTime;
+          var notes = [587.33, 739.99, 880, 1174.66]; // D5, F#5, A5, D6
+          notes.forEach(function (freq, i) {
+            var osc = ctx.createOscillator();
+            var gain = ctx.createGain();
+            osc.type = 'sine';
+            osc.frequency.setValueAtTime(freq, now + i * 0.12);
+            gain.gain.setValueAtTime(0.001, now + i * 0.12);
+            gain.gain.exponentialRampToValueAtTime(0.09, now + i * 0.12 + 0.02);
+            gain.gain.exponentialRampToValueAtTime(0.001, now + i * 0.12 + 0.35);
+
+            osc.connect(gain);
+            gain.connect(ctx.destination);
+            osc.start(now + i * 0.12);
+            osc.stop(now + i * 0.12 + 0.38);
+          });
+          if (navigator.vibrate) navigator.vibrate([200, 100, 200, 1000]);
+        } catch (e) {}
+      }
+      playChime();
+      ringInterval = setInterval(playChime, 2600);
+    }
+
+    function playEndChime() {
+      stopRingtone();
+      try {
+        var ctx = getAudioContext();
+        if (!ctx) return;
+        var now = ctx.currentTime;
+        var osc = ctx.createOscillator();
+        var gain = ctx.createGain();
+        osc.type = 'sine';
+        osc.frequency.setValueAtTime(440, now);
+        osc.frequency.exponentialRampToValueAtTime(260, now + 0.22);
+        gain.gain.setValueAtTime(0.08, now);
+        gain.gain.exponentialRampToValueAtTime(0.001, now + 0.25);
+        osc.connect(gain);
+        gain.connect(ctx.destination);
+        osc.start(now);
+        osc.stop(now + 0.26);
+        if (navigator.vibrate) navigator.vibrate([80]);
+      } catch (e) {}
+    }
+
+    function stopRingtone() {
+      if (ringInterval) {
+        clearInterval(ringInterval);
+        ringInterval = null;
+      }
+    }
+
+    function formatDuration(sec) {
+      var m = Math.floor(sec / 60);
+      var s = sec % 60;
+      return (m < 10 ? '0' + m : m) + ':' + (s < 10 ? '0' + s : s);
+    }
+
+    function startCallTimer() {
+      stopCallTimer();
+      callStartTs = Date.now();
+      if (ui.callActiveTimer) ui.callActiveTimer.textContent = '00:00';
+      timerInterval = setInterval(function () {
+        var elapsed = Math.floor((Date.now() - callStartTs) / 1000);
+        if (ui.callActiveTimer) ui.callActiveTimer.textContent = formatDuration(elapsed);
+      }, 1000);
+    }
+
+    function stopCallTimer() {
+      if (timerInterval) {
+        clearInterval(timerInterval);
+        timerInterval = null;
+      }
+    }
+
+    function cleanupMedia() {
+      if (localStream) {
+        localStream.getTracks().forEach(function (t) {
+          try { t.stop(); } catch (e) {}
+        });
+        localStream = null;
+      }
+      if (pc) {
+        try { pc.close(); } catch (e) {}
+        pc = null;
+      }
+      if (ui.remoteAudio) {
+        ui.remoteAudio.srcObject = null;
+      }
+      candidateQueue = [];
+      isMuted = false;
+      updateMuteUI();
+    }
+
+    function updateMuteUI() {
+      if (!ui.callMuteBtn) return;
+      ui.callMuteBtn.classList.toggle('muted', isMuted);
+      ui.callMuteBtn.title = isMuted ? 'Unmute microphone' : 'Mute microphone';
+      if (ui.callMicIcon) {
+        if (isMuted) {
+          ui.callMicIcon.innerHTML =
+            '<line x1="1" y1="1" x2="23" y2="23"></line>' +
+            '<path d="M9 9v3a3 3 0 0 0 5.12 2.12M15 9.34V4a3 3 0 0 0-5.94-.6"></path>' +
+            '<path d="M17 16.95A7 7 0 0 1 5 12v-2m14 0v2a7 7 0 0 1-.11 1.23"></path>' +
+            '<line x1="12" y1="19" x2="12" y2="23"></line>' +
+            '<line x1="8" y1="23" x2="16" y2="23"></line>';
+        } else {
+          ui.callMicIcon.innerHTML =
+            '<path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>' +
+            '<path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>' +
+            '<line x1="12" y1="19" x2="12" y2="23"></line>' +
+            '<line x1="8" y1="23" x2="16" y2="23"></line>';
+        }
+      }
+    }
+
+    function toggleMute() {
+      if (!localStream) return;
+      var audioTracks = localStream.getAudioTracks();
+      if (!audioTracks.length) return;
+      isMuted = !isMuted;
+      audioTracks[0].enabled = !isMuted;
+      updateMuteUI();
+      toast(isMuted ? 'Microphone muted 🔇' : 'Microphone unmuted 🎙️');
+    }
+
+    // ---------- Start Outgoing Call ----------
+    async function startCall() {
+      if (stateCall !== 'IDLE') {
+        toast('Already in a call or connecting.');
+        return;
+      }
+      if (!state.room || !state.user) {
+        toast('Join a room to start a call.');
+        return;
+      }
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        toast('Voice calls require microphone support (HTTPS or localhost).');
+        return;
+      }
+
+      try {
+        unlockAudio();
+        localStream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+          video: false
+        });
+      } catch (err) {
+        toast('Microphone access was denied. Allow mic in browser settings.');
+        return;
+      }
+
+      stateCall = 'OUTGOING';
+      activeCallId = uuid();
+      peerId = null;
+      peerName = '';
+
+      if (ui.callActiveBar) ui.callActiveBar.hidden = false;
+      if (ui.callActiveName) ui.callActiveName.textContent = 'Calling ' + (state.roomDisplayName || state.room) + '…';
+      if (ui.callActiveTimer) ui.callActiveTimer.textContent = 'Ringing…';
+
+      startOutgoingRing();
+
+      try {
+        if (state.channel) {
+          state.channel.send({
+            type: 'broadcast',
+            event: 'call_invite',
+            payload: {
+              callId: activeCallId,
+              callerId: state.user.id,
+              callerName: state.name,
+              roomId: state.room
+            }
+          });
+        }
+      } catch (e) {
+        console.warn('Call invite broadcast error:', e);
+      }
+
+      clearTimeout(autoCancelTimer);
+      autoCancelTimer = setTimeout(function () {
+        if (stateCall === 'OUTGOING') {
+          toast('No answer.');
+          endCall(true);
+        }
+      }, 45000);
+    }
+
+    // ---------- Incoming Call Handler ----------
+    function handleIncomingInvite(payload) {
+      if (!payload || !payload.callId || !payload.callerId) return;
+      if (payload.callerId === (state.user && state.user.id)) return;
+      if (payload.roomId !== state.room) return;
+
+      if (stateCall !== 'IDLE') {
+        return;
+      }
+
+      stateCall = 'INCOMING';
+      activeCallId = payload.callId;
+      peerId = payload.callerId;
+      peerName = payload.callerName || 'Someone';
+
+      if (ui.callIncomingCaller) ui.callIncomingCaller.textContent = peerName;
+      if (ui.callIncomingAvatar) ui.callIncomingAvatar.textContent = peerName.charAt(0).toUpperCase() || '📞';
+      if (ui.callIncomingBanner) ui.callIncomingBanner.hidden = false;
+
+      startIncomingRing();
+
+      if (document.hidden || (typeof document.hasFocus === 'function' && !document.hasFocus())) {
+        sendSystemNotification('Incoming Voice Call 📞', {
+          body: peerName + ' is calling in ' + (state.roomDisplayName || 'chat'),
+          tag: 'call-' + activeCallId,
+          requireInteraction: true
+        });
+      }
+
+      clearTimeout(autoCancelTimer);
+      autoCancelTimer = setTimeout(function () {
+        if (stateCall === 'INCOMING') {
+          hideIncomingUI();
+          stopRingtone();
+          stateCall = 'IDLE';
+        }
+      }, 45000);
+    }
+
+    function hideIncomingUI() {
+      if (ui.callIncomingBanner) ui.callIncomingBanner.hidden = true;
+    }
+
+    // ---------- Accept Call (Callee) ----------
+    async function acceptCall() {
+      if (stateCall !== 'INCOMING') return;
+      stopRingtone();
+      hideIncomingUI();
+      clearTimeout(autoCancelTimer);
+
+      try {
+        unlockAudio();
+        localStream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true },
+          video: false
+        });
+      } catch (err) {
+        toast('Microphone access denied. Could not answer call.');
+        declineCall();
+        return;
+      }
+
+      stateCall = 'CONNECTED';
+      if (ui.callActiveBar) ui.callActiveBar.hidden = false;
+      if (ui.callActiveName) ui.callActiveName.textContent = peerName;
+      if (ui.callActiveTimer) ui.callActiveTimer.textContent = 'Connecting…';
+
+      setupPeerConnection();
+
+      try {
+        if (state.channel) {
+          state.channel.send({
+            type: 'broadcast',
+            event: 'call_accept',
+            payload: {
+              callId: activeCallId,
+              calleeId: state.user.id,
+              calleeName: state.name,
+              callerId: peerId
+            }
+          });
+        }
+      } catch (e) {}
+    }
+
+    // ---------- Decline Call (Callee) ----------
+    function declineCall() {
+      if (stateCall !== 'INCOMING') return;
+      stopRingtone();
+      hideIncomingUI();
+      clearTimeout(autoCancelTimer);
+
+      var rejectedCallId = activeCallId;
+      var callerId = peerId;
+
+      stateCall = 'IDLE';
+      activeCallId = null;
+      peerId = null;
+      peerName = '';
+
+      try {
+        if (state.channel && rejectedCallId) {
+          state.channel.send({
+            type: 'broadcast',
+            event: 'call_decline',
+            payload: { callId: rejectedCallId, calleeId: state.user.id, callerId: callerId }
+          });
+        }
+      } catch (e) {}
+    }
+
+    // ---------- Peer Accepted (Caller receives this) ----------
+    async function handlePeerAccept(payload) {
+      if (stateCall !== 'OUTGOING' || payload.callId !== activeCallId) return;
+      if (payload.callerId && payload.callerId !== state.user.id) return;
+
+      stopRingtone();
+      clearTimeout(autoCancelTimer);
+
+      stateCall = 'CONNECTED';
+      peerId = payload.calleeId;
+      peerName = payload.calleeName || 'Someone';
+
+      if (ui.callActiveName) ui.callActiveName.textContent = peerName;
+      if (ui.callActiveTimer) ui.callActiveTimer.textContent = 'Connecting…';
+
+      setupPeerConnection();
+
+      try {
+        var offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+
+        if (state.channel) {
+          state.channel.send({
+            type: 'broadcast',
+            event: 'call_offer',
+            payload: {
+              callId: activeCallId,
+              sdp: offer,
+              fromId: state.user.id,
+              toId: peerId
+            }
+          });
+        }
+      } catch (err) {
+        console.warn('Create offer error:', err);
+        endCall(true);
+      }
+    }
+
+    // ---------- Peer Declined (Caller receives this) ----------
+    function handlePeerDecline(payload) {
+      if (stateCall === 'OUTGOING' && payload.callId === activeCallId) {
+        toast('Call was declined.');
+        playEndChime();
+        endCall(false);
+      }
+    }
+
+    // ---------- Setup RTCPeerConnection ----------
+    function setupPeerConnection() {
+      if (pc) {
+        try { pc.close(); } catch (e) {}
+      }
+      pc = new (window.RTCPeerConnection || window.webkitRTCPeerConnection)(rtcConfig);
+
+      if (localStream) {
+        localStream.getTracks().forEach(function (track) {
+          pc.addTrack(track, localStream);
+        });
+      }
+
+      pc.ontrack = function (e) {
+        if (ui.remoteAudio && e.streams && e.streams[0]) {
+          ui.remoteAudio.srcObject = e.streams[0];
+          ui.remoteAudio.play().catch(function () {});
+        }
+        startCallTimer();
+      };
+
+      pc.onicecandidate = function (e) {
+        if (e.candidate && state.channel && activeCallId && peerId) {
+          state.channel.send({
+            type: 'broadcast',
+            event: 'call_ice',
+            payload: {
+              callId: activeCallId,
+              candidate: e.candidate,
+              fromId: state.user.id,
+              toId: peerId
+            }
+          });
+        }
+      };
+
+      pc.onconnectionstatechange = function () {
+        if (pc.connectionState === 'connected') {
+          startCallTimer();
+        } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+          toast('Voice connection dropped.');
+          endCall(false);
+        }
+      };
+    }
+
+    // ---------- WebRTC Offer Handler (Callee receives offer) ----------
+    async function handleOffer(payload) {
+      if (!payload || payload.callId !== activeCallId) return;
+      if (payload.toId && payload.toId !== state.user.id) return;
+      if (!pc) setupPeerConnection();
+
+      try {
+        await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+
+        while (candidateQueue.length > 0) {
+          var cand = candidateQueue.shift();
+          try { await pc.addIceCandidate(new RTCIceCandidate(cand)); } catch (e) {}
+        }
+
+        var answer = await pc.createAnswer();
+        await pc.setLocalDescription(answer);
+
+        if (state.channel) {
+          state.channel.send({
+            type: 'broadcast',
+            event: 'call_answer',
+            payload: {
+              callId: activeCallId,
+              sdp: answer,
+              fromId: state.user.id,
+              toId: peerId
+            }
+          });
+        }
+      } catch (err) {
+        console.warn('Handle offer error:', err);
+      }
+    }
+
+    // ---------- WebRTC Answer Handler (Caller receives answer) ----------
+    async function handleAnswer(payload) {
+      if (!payload || payload.callId !== activeCallId || !pc) return;
+      if (payload.toId && payload.toId !== state.user.id) return;
+
+      try {
+        await pc.setRemoteDescription(new RTCSessionDescription(payload.sdp));
+
+        while (candidateQueue.length > 0) {
+          var cand = candidateQueue.shift();
+          try { await pc.addIceCandidate(new RTCIceCandidate(cand)); } catch (e) {}
+        }
+        startCallTimer();
+      } catch (err) {
+        console.warn('Handle answer error:', err);
+      }
+    }
+
+    // ---------- ICE Candidate Handler ----------
+    async function handleIceCandidate(payload) {
+      if (!payload || payload.callId !== activeCallId || !payload.candidate) return;
+      if (payload.toId && payload.toId !== state.user.id) return;
+
+      if (pc && pc.remoteDescription && pc.remoteDescription.type) {
+        try {
+          await pc.addIceCandidate(new RTCIceCandidate(payload.candidate));
+        } catch (e) {
+          console.warn('addIceCandidate error:', e);
+        }
+      } else {
+        candidateQueue.push(payload.candidate);
+      }
+    }
+
+    // ---------- Remote Call End Handler ----------
+    function handleCallEnd(payload) {
+      if (payload && payload.callId === activeCallId) {
+        playEndChime();
+        toast('Call ended by ' + (peerName || 'participant') + '.');
+        endCall(false);
+      }
+    }
+
+    // ---------- End Call (Hang up) ----------
+    function endCall(sendBroadcast) {
+      stopRingtone();
+      hideIncomingUI();
+      clearTimeout(autoCancelTimer);
+      var durationStr = ui.callActiveTimer ? ui.callActiveTimer.textContent : '';
+
+      if (sendBroadcast !== false && state.channel && activeCallId) {
+        try {
+          state.channel.send({
+            type: 'broadcast',
+            event: 'call_end',
+            payload: {
+              callId: activeCallId,
+              fromId: state.user ? state.user.id : null,
+              toId: peerId
+            }
+          });
+        } catch (e) {}
+      }
+
+      if (stateCall === 'CONNECTED' && durationStr && durationStr !== 'Connecting…') {
+        playEndChime();
+        toast('Call ended (' + durationStr + ')');
+      }
+
+      stopCallTimer();
+      cleanupMedia();
+
+      if (ui.callActiveBar) ui.callActiveBar.hidden = true;
+
+      stateCall = 'IDLE';
+      activeCallId = null;
+      peerId = null;
+      peerName = '';
+    }
+
+    function init() {
+      if (ui.callBtn) {
+        ui.callBtn.addEventListener('click', startCall);
+      }
+      if (ui.callAcceptBtn) {
+        ui.callAcceptBtn.addEventListener('click', acceptCall);
+      }
+      if (ui.callDeclineBtn) {
+        ui.callDeclineBtn.addEventListener('click', declineCall);
+      }
+      if (ui.callHangupBtn) {
+        ui.callHangupBtn.addEventListener('click', function () { endCall(true); });
+      }
+      if (ui.callMuteBtn) {
+        ui.callMuteBtn.addEventListener('click', toggleMute);
+      }
+    }
+
+    return {
+      init: init,
+      startCall: startCall,
+      endCall: endCall,
+      handleIncomingInvite: handleIncomingInvite,
+      handlePeerAccept: handlePeerAccept,
+      handlePeerDecline: handlePeerDecline,
+      handleOffer: handleOffer,
+      handleAnswer: handleAnswer,
+      handleIceCandidate: handleIceCandidate,
+      handleCallEnd: handleCallEnd
+    };
+  })();
 
   // ---------- Supabase Client ----------
   function isConfigured() {
@@ -1114,6 +1728,28 @@
       if (payload && payload.payload && payload.payload.reader_id !== (state.user && state.user.id)) {
         handleReadAck(payload.payload.up_to);
       }
+    })
+    // WebRTC Voice Calling Signaling
+    .on('broadcast', { event: 'call_invite' }, function (payload) {
+      if (payload && payload.payload) CallManager.handleIncomingInvite(payload.payload);
+    })
+    .on('broadcast', { event: 'call_accept' }, function (payload) {
+      if (payload && payload.payload) CallManager.handlePeerAccept(payload.payload);
+    })
+    .on('broadcast', { event: 'call_decline' }, function (payload) {
+      if (payload && payload.payload) CallManager.handlePeerDecline(payload.payload);
+    })
+    .on('broadcast', { event: 'call_offer' }, function (payload) {
+      if (payload && payload.payload) CallManager.handleOffer(payload.payload);
+    })
+    .on('broadcast', { event: 'call_answer' }, function (payload) {
+      if (payload && payload.payload) CallManager.handleAnswer(payload.payload);
+    })
+    .on('broadcast', { event: 'call_ice' }, function (payload) {
+      if (payload && payload.payload) CallManager.handleIceCandidate(payload.payload);
+    })
+    .on('broadcast', { event: 'call_end' }, function (payload) {
+      if (payload && payload.payload) CallManager.handleCallEnd(payload.payload);
     })
     // 2. Database postgres_changes fallback (filtered in JavaScript to avoid walrus filter bugs)
     .on('postgres_changes',
@@ -2243,6 +2879,7 @@
   }
 
   function showRoomPicker() {
+    CallManager.endCall(false);
     if (state.room) {
       markRoomAsRead(state.room);
     }
@@ -2278,6 +2915,7 @@
   }
 
   function leaveChat() {
+    CallManager.endCall(false);
     if (state.room) {
       markRoomAsRead(state.room);
     }
@@ -2438,6 +3076,7 @@
 
   // ---------- Boot ----------
   async function boot() {
+    CallManager.init();
     if (!isConfigured() || !window.supabase) { show('setup'); return; }
     sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_PUBLISHABLE_KEY, {
       auth: { persistSession: true, autoRefreshToken: true },
