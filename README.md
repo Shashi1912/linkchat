@@ -146,3 +146,58 @@ To change something later, edit the file (on GitHub you can click the ✏️ pen
 - **Room name:** `ROOM_NAME` in `config.js`.
 - **Separate room:** use another copy of the site with a different `ROOM_ID` in `config.js`, such as `team-a`. Lowercase letters, numbers, `-` and `_` only.
 - **Colours:** the variables at the top of `style.css`.
+
+---
+
+## 🚀 Live Release & Next-Gen Architecture (v3.0.3)
+
+LinkChat is currently running **v3.0.3** on GitHub Pages (`https://shashi1912.github.io/linkchat/`).
+
+### Currently Deployed & Active Features:
+1. **WebRTC Calling Suite**: Peer-to-peer crystal-clear voice and HD video calling with floating Picture-in-Picture (PIP), synthesized Apple dial tones, and 1-tap live screen sharing.
+2. **Apple Voice Notes (Walkie-Talkie)**: Live visualizer audio recording, waveform speech bubbles, and **1× / 1.5× / 2× speed switching**.
+3. **iMessage-Style Social Interactions**: Floating Apple emoji reaction pills (`❤️`, `👍`, `😂`, `🔥`, `👏`) with live participant counters, quoted replies (`↩️`), and smart client-side photo downscaling.
+4. **Fortified Security & Privacy Shield**:
+   - **Tab-Shift Auto-Lock**: Screen locks immediately on tab shift / window blur; unlocking strictly requires the room password.
+   - **Zero-Disk Ephemeral Keys**: Room keys are memory-only—never saved in localStorage or URL history.
+   - **Brute-Force Rate Limiting**: Progressive lockouts (15s, 30s, 60s) via `RoomSecurity`.
+   - **Zero-Knowledge E2EE**: AES-256-GCM client-side encryption for private rooms.
+5. **1-Scan QR Pairing**: Built-in modal generating instant scannable QR codes for 1-tap phone camera joining.
+6. **Progressive Web App (PWA)**: Full offline service worker caching and installability on iOS and Android.
+
+---
+
+## 🔮 Future Architecture & Development Roadmap (Next Conversation Handoff)
+
+*Use this section as the primary context to resume development in the next session.*
+
+### 1. 🌐 Serverless Offline Mesh Network (Zero-Internet Communication)
+* **Goal**: Enable direct phone-to-phone and PC-to-PC encrypted messaging with **zero internet, zero cellular data, and zero cloud servers**.
+* **Core Technical Pillars**:
+  1. **Local Hotspot / Subnet Routing**: Direct WebRTC DataChannels over local Wi-Fi radios or phone personal hotspots (even with mobile data turned off).
+  2. **Optical QR Handshake (AirDrop Style)**: Device A presents an SDP offer QR code; Device B scans it with its camera to complete the connection handshake without touching any external server.
+  3. **Multi-Hop Relay Protocol**: Devices act as mesh repeater nodes—messages seamlessly hop through intermediary devices to reach distant participants.
+  4. **Full PWA Offline Boot**: Service Worker caches all assets locally so LinkChat boots in 0.2s in 100% Airplane Mode.
+
+### 2. 🎮 In-Chat Real-Time Multiplayer Gaming Arena
+* **Goal**: Zero-download, 60FPS multiplayer games embedded directly inside chat bubbles and offline mesh streams.
+* **Target Games**:
+  - **Cyberpunk Neon Air Hockey**: 60FPS high-speed P2P physics duel using mouse/touch paddles over WebRTC DataChannels.
+  - **Apple Glass Chess**: Tactical turn-based multiplayer with room spectator mode and emoji cheering.
+  - **Multiplayer Snake Royale**: Multi-user arena battle with real-time room leaderboard.
+  - **Real-Time Pictionary / Scribble Duel**: Synchronized interactive whiteboard guessing game.
+
+### 3. 🧠 Multi-Agent Personal AI Swarm
+* **Goal**: Co-presence personal AI agents embedded in group rooms that research, run simulations, summarize missed history, and generate consensus matrices for group decisions.
+
+### 4. 🌌 Generative 3D Spatial Canvas
+* **Goal**: 1-click transformation of 2D chat into an interactive 3D spatial audio environment where avatars move and interact in shared space.
+
+### 5. 📡 Long-Range Off-Grid Relay Principles (1,000+ km)
+* **Documented Protocols**: Skywave Ionospheric HF radio bouncing, Direct-to-Cell LEO satellite relays, and Delay-Tolerant "Data Mule" routing.
+
+---
+
+### 📍 Where to Start the Next Conversation:
+To continue, simply reference this section and instruct the agent:
+> *"Let's implement the Serverless Offline Mesh Network and the In-Chat Multiplayer Arena from the README roadmap."*
