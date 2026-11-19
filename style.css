@@ -2251,6 +2251,70 @@ button:active, .room-btn-apple:active, .segment-tab:active {
   box-shadow: 0 2px 8px rgba(255, 59, 48, 0.35);
 }
 
+/* ---------- Privacy Shield (Anti-Peeking & Tab Blur) ---------- */
+.privacy-shield {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(10, 10, 12, 0.75);
+  backdrop-filter: blur(28px) saturate(180%);
+  -webkit-backdrop-filter: blur(28px) saturate(180%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  animation: privacyFadeIn 0.22s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+[data-theme="light"] .privacy-shield {
+  background: rgba(245, 245, 247, 0.82);
+}
+
+@keyframes privacyFadeIn {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.privacy-shield-card {
+  background: var(--apple-surface);
+  border: 1px solid var(--apple-border);
+  box-shadow: var(--apple-shadow-lg);
+  border-radius: var(--apple-radius-lg);
+  padding: 28px 24px;
+  text-align: center;
+  max-width: 320px;
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+}
+
+.privacy-shield-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: var(--apple-blue-gradient);
+  display: grid;
+  place-items: center;
+  color: white;
+  margin-bottom: 4px;
+  box-shadow: 0 4px 16px rgba(0, 122, 255, 0.35);
+}
+
+.privacy-shield-card h3 {
+  font-size: 17px;
+  font-weight: 650;
+  color: var(--apple-label);
+  margin: 0;
+}
+
+.privacy-shield-card p {
+  font-size: 13px;
+  color: var(--apple-secondary-label);
+  margin: 0 0 8px 0;
+}
+
 /* ---------- Accessibility & Reduced Motion / Transparency (§14) ---------- */
 @media (prefers-reduced-motion: reduce) {
   * {

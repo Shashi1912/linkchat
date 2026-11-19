@@ -64,6 +64,9 @@
     themeBtn: $('theme-btn'), themeIcon: $('theme-icon'),
     notifBtn: $('notif-btn'), notifDot: $('notif-status-dot'),
     leaveBtn: $('leave-btn'),
+    panicBtn: $('panic-btn'),
+    privacyShield: $('privacy-shield'),
+    privacyUnlockBtn: $('privacy-unlock-btn'),
     // Room Views & Apple Dropdown
     viewDropdownBtn: $('view-dropdown-btn'),
     viewTilesBtn: $('view-tiles-btn'),
@@ -1872,11 +1875,23 @@
     }
   });
 
+  // Anti-Spam / Rate Limiting (Max 4 messages per 3 seconds)
+  var sendTimestamps = [];
+
   ui.composer.addEventListener('submit', function (e) {
     e.preventDefault();
     stopTypingSignal();
     var text = ui.input.value.trim();
     if (!text || text.length > MAX_LEN || !state.user) return;
+
+    var now = Date.now();
+    sendTimestamps = sendTimestamps.filter(function (t) { return now - t < 3000; });
+    if (sendTimestamps.length >= 4) {
+      toast('Slow down: Please wait a moment before sending another message ⏳');
+      return;
+    }
+    sendTimestamps.push(now);
+
     var m = {
       id: uuid(), user_id: state.user.id, display_name: state.name, content: text,
       raw: null, ts: Date.now(), status: 'sending', seq: ++state.seq,
@@ -3226,6 +3241,86 @@
     ui.onlineList.hidden = true;
     showJoin('');
   });
+
+  // ---------- Panic Button / Emergency Quick Lock (<Esc> <Esc>) ----------
+  function executeQuickLock() {
+    CallManager.endCall(false);
+    if (ui.feed) ui.feed.replaceChildren();
+    leaveChat();
+    clearStoredRoomKeys();
+    store(NAME_KEY, null);
+    store(ROOM_KEY, null);
+    store(ROOM_NAME_KEY, null);
+    store(ROOM_KEY_PASS, null);
+    if (ui.onlineList) ui.onlineList.hidden = true;
+    if (ui.privacyShield) ui.privacyShield.hidden = true;
+    showJoin('');
+    toast('Emergency lock activated 🛡️');
+  }
+
+  if (ui.panicBtn) {
+    ui.panicBtn.addEventListener('click', executeQuickLock);
+  }
+
+  // Keyboard shortcut: Double-tap <Escape> within 600ms triggers emergency lock
+  var lastEscTs = 0;
+  document.addEventListener('keydown', function (e) {
+    if (e.key === 'Escape') {
+      var now = Date.now();
+      if (now - lastEscTs < 600) {
+        lastEscTs = 0;
+        executeQuickLock();
+      } else {
+        lastEscTs = now;
+      }
+    }
+  });
+
+  // ---------- Privacy Shield (Anti-Peeking on Inactive Tab / App Switcher) ----------
+  function updatePrivacyShield(show) {
+    if (!ui.privacyShield) return;
+    if (show && state.room && state.room !== 'general') {
+      ui.privacyShield.hidden = false;
+    } else if (!show) {
+      ui.privacyShield.hidden = true;
+    }
+  }
+
+  document.addEventListener('visibilitychange', function () {
+    if (document.hidden) {
+      updatePrivacyShield(true);
+    }
+  });
+
+  window.addEventListener('blur', function () {
+    updatePrivacyShield(true);
+  });
+
+  if (ui.privacyUnlockBtn) {
+    ui.privacyUnlockBtn.addEventListener('click', function () {
+      updatePrivacyShield(false);
+    });
+  }
+
+  // ---------- Inactivity Auto-Lock (5 Minutes Idle Timer) ----------
+  var lastActivityTs = Date.now();
+  function resetActivityTimer() {
+    lastActivityTs = Date.now();
+  }
+
+  ['mousemove', 'pointerdown', 'keydown', 'touchstart', 'scroll'].forEach(function (evt) {
+    window.addEventListener(evt, resetActivityTimer, { passive: true });
+  });
+
+  setInterval(function () {
+    // Auto-lock if idle for more than 5 minutes (300,000 ms) while in a private room
+    if (state.room && state.room !== 'general' && Date.now() - lastActivityTs > 300000) {
+      toast('Session auto-locked due to inactivity 🔒');
+      leaveChat();
+      clearStoredRoomKeys();
+      showRoomPicker();
+    }
+  }, 15000);
 
   // ---------- Boot ----------
   async function boot() {
