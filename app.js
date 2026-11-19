@@ -67,6 +67,16 @@
     panicBtn: $('panic-btn'),
     privacyShield: $('privacy-shield'),
     privacyUnlockBtn: $('privacy-unlock-btn'),
+    // QR Code Modal
+    qrBtn: $('qr-btn'), qrModal: $('qr-modal'), qrContainer: $('qr-container'),
+    qrRoomName: $('qr-room-name'), qrRoomId: $('qr-room-id'), qrCopyBtn: $('qr-copy-btn'), qrCloseBtn: $('qr-close-btn'),
+    // Video Call PIP
+    callVideoBtn: $('call-video-btn'), callVideoIcon: $('call-video-icon'), callScreenBtn: $('call-screen-btn'),
+    callVideoContainer: $('call-video-container'), remoteVideo: $('remote-video'), localVideo: $('local-video'), videoPipCloseBtn: $('video-pip-close-btn'),
+    // Voice Notes & Replies
+    voiceRecordBtn: $('voice-record-btn'), voiceRecordingBar: $('voice-recording-bar'), voiceTimer: $('voice-timer'),
+    voiceCancelBtn: $('voice-cancel-btn'), voiceSendBtn: $('voice-send-btn'), msgInputWrap: $('msg-input-wrap'),
+    replyPreviewBar: $('reply-preview-bar'), replyToName: $('reply-to-name'), replyToSnippet: $('reply-to-snippet'), replyCancelBtn: $('reply-cancel-btn'),
     // Room Views & Apple Dropdown
     viewDropdownBtn: $('view-dropdown-btn'),
     viewTilesBtn: $('view-tiles-btn'),
@@ -589,6 +599,8 @@
     var peerName = '';
     var pc = null;
     var localStream = null;
+    var localVideoTrack = null;
+    var isVideoActive = false;
     var isMuted = false;
     var timerInterval = null;
     var callStartTs = 0;
@@ -722,6 +734,10 @@
         });
         localStream = null;
       }
+      if (localVideoTrack) {
+        try { localVideoTrack.stop(); } catch (e) {}
+        localVideoTrack = null;
+      }
       if (pc) {
         try { pc.close(); } catch (e) {}
         pc = null;
@@ -729,6 +745,19 @@
       if (ui.remoteAudio) {
         ui.remoteAudio.srcObject = null;
       }
+      if (ui.remoteVideo) {
+        ui.remoteVideo.srcObject = null;
+      }
+      if (ui.localVideo) {
+        ui.localVideo.srcObject = null;
+      }
+      if (ui.callVideoContainer) {
+        ui.callVideoContainer.hidden = true;
+      }
+      if (ui.callVideoBtn) {
+        ui.callVideoBtn.classList.remove('active');
+      }
+      isVideoActive = false;
       candidateQueue = [];
       isMuted = false;
       updateMuteUI();
@@ -1002,9 +1031,15 @@
       }
 
       pc.ontrack = function (e) {
-        if (ui.remoteAudio && e.streams && e.streams[0]) {
-          ui.remoteAudio.srcObject = e.streams[0];
-          ui.remoteAudio.play().catch(function () {});
+        if (e.streams && e.streams[0]) {
+          if (ui.remoteAudio) {
+            ui.remoteAudio.srcObject = e.streams[0];
+            ui.remoteAudio.play().catch(function () {});
+          }
+          if (e.track && e.track.kind === 'video') {
+            if (ui.remoteVideo) ui.remoteVideo.srcObject = e.streams[0];
+            if (ui.callVideoContainer) ui.callVideoContainer.hidden = false;
+          }
         }
         startCallTimer();
       };
@@ -1148,6 +1183,94 @@
       peerName = '';
     }
 
+    async function toggleVideo() {
+      if (!pc || stateCall !== 'CONNECTED') {
+        toast('Start or answer a call before turning on video.');
+        return;
+      }
+      if (isVideoActive) {
+        if (localVideoTrack) {
+          localVideoTrack.stop();
+          var sender = pc.getSenders().find(function (s) { return s.track && s.track.kind === 'video'; });
+          if (sender) pc.removeTrack(sender);
+          localVideoTrack = null;
+        }
+        if (ui.localVideo) ui.localVideo.srcObject = null;
+        isVideoActive = false;
+        if (ui.callVideoBtn) ui.callVideoBtn.classList.remove('active');
+        if (!ui.remoteVideo || !ui.remoteVideo.srcObject) {
+          if (ui.callVideoContainer) ui.callVideoContainer.hidden = true;
+        }
+        toast('Camera turned off 📷');
+      } else {
+        try {
+          var vStream = await navigator.mediaDevices.getUserMedia({
+            video: { width: { ideal: 640 }, height: { ideal: 480 }, facingMode: 'user' },
+            audio: false
+          });
+          localVideoTrack = vStream.getVideoTracks()[0];
+          pc.addTrack(localVideoTrack, localStream || vStream);
+          if (ui.localVideo) ui.localVideo.srcObject = new MediaStream([localVideoTrack]);
+          if (ui.callVideoContainer) ui.callVideoContainer.hidden = false;
+          isVideoActive = true;
+          if (ui.callVideoBtn) ui.callVideoBtn.classList.add('active');
+          toast('Camera turned on 📹');
+
+          var offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          if (state.channel) {
+            state.channel.send({
+              type: 'broadcast',
+              event: 'call_offer',
+              payload: { callId: activeCallId, sdp: offer, fromId: state.user.id, toId: peerId }
+            });
+          }
+        } catch (err) {
+          toast('Could not access camera: ' + (err.message || err));
+        }
+      }
+    }
+
+    async function toggleScreenShare() {
+      if (!pc || stateCall !== 'CONNECTED') {
+        toast('Start or answer a call before sharing screen.');
+        return;
+      }
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getDisplayMedia) {
+        toast('Screen sharing is not supported on this browser.');
+        return;
+      }
+      try {
+        var screenStream = await navigator.mediaDevices.getDisplayMedia({ video: true, audio: false });
+        var screenTrack = screenStream.getVideoTracks()[0];
+        screenTrack.onended = function () {
+          toggleVideo();
+        };
+        var sender = pc.getSenders().find(function (s) { return s.track && s.track.kind === 'video'; });
+        if (sender) {
+          sender.replaceTrack(screenTrack);
+        } else {
+          pc.addTrack(screenTrack, localStream || screenStream);
+        }
+        if (ui.localVideo) ui.localVideo.srcObject = new MediaStream([screenTrack]);
+        if (ui.callVideoContainer) ui.callVideoContainer.hidden = false;
+        isVideoActive = true;
+        toast('Screen sharing started 🖥️');
+
+        var offer = await pc.createOffer();
+        await pc.setLocalDescription(offer);
+        if (state.channel) {
+          state.channel.send({
+            type: 'broadcast',
+            event: 'call_offer',
+            payload: { callId: activeCallId, sdp: offer, fromId: state.user.id, toId: peerId }
+          });
+        }
+      } catch (e) {
+        console.warn('Screen share cancelled:', e);
+      }
+    }
+
     function init() {
       if (ui.callBtn) {
         ui.callBtn.addEventListener('click', startCall);
@@ -1164,6 +1287,17 @@
       if (ui.callMuteBtn) {
         ui.callMuteBtn.addEventListener('click', toggleMute);
       }
+      if (ui.callVideoBtn) {
+        ui.callVideoBtn.addEventListener('click', toggleVideo);
+      }
+      if (ui.callScreenBtn) {
+        ui.callScreenBtn.addEventListener('click', toggleScreenShare);
+      }
+      if (ui.videoPipCloseBtn) {
+        ui.videoPipCloseBtn.addEventListener('click', function () {
+          if (ui.callVideoContainer) ui.callVideoContainer.hidden = true;
+        });
+      }
     }
 
     return {
@@ -1179,6 +1313,350 @@
       handleCallEnd: handleCallEnd
     };
   })();
+
+  // =========================================================================
+  // Apple Voice Notes Engine (Audio Walkie-Talkie with Waveforms & Speed)
+  // =========================================================================
+  var VoiceManager = (function () {
+    var mediaRecorder = null;
+    var audioChunks = [];
+    var recTimerInterval = null;
+    var recStartTs = 0;
+    var isRecording = false;
+
+    async function startRecording() {
+      if (isRecording) return;
+      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        toast('Voice notes require microphone support.');
+        return;
+      }
+      try {
+        unlockAudio();
+        var stream = await navigator.mediaDevices.getUserMedia({
+          audio: { echoCancellation: true, noiseSuppression: true }
+        });
+        audioChunks = [];
+        var mimeType = '';
+        if (typeof MediaRecorder !== 'undefined') {
+          if (MediaRecorder.isTypeSupported('audio/webm;codecs=opus')) mimeType = 'audio/webm;codecs=opus';
+          else if (MediaRecorder.isTypeSupported('audio/mp4')) mimeType = 'audio/mp4';
+          else if (MediaRecorder.isTypeSupported('audio/ogg')) mimeType = 'audio/ogg';
+        }
+
+        mediaRecorder = mimeType ? new MediaRecorder(stream, { mimeType: mimeType }) : new MediaRecorder(stream);
+        mediaRecorder.ondataavailable = function (e) {
+          if (e.data && e.data.size > 0) audioChunks.push(e.data);
+        };
+        mediaRecorder.start(250);
+        isRecording = true;
+        recStartTs = Date.now();
+
+        if (ui.voiceRecordingBar) ui.voiceRecordingBar.hidden = false;
+        if (ui.msgInputWrap) ui.msgInputWrap.hidden = true;
+        if (ui.voiceRecordBtn) ui.voiceRecordBtn.hidden = true;
+        if (ui.sendBtn) ui.sendBtn.hidden = true;
+        if (ui.voiceTimer) ui.voiceTimer.textContent = '00:00';
+
+        clearInterval(recTimerInterval);
+        recTimerInterval = setInterval(function () {
+          var elapsed = Math.floor((Date.now() - recStartTs) / 1000);
+          var m = Math.floor(elapsed / 60);
+          var s = elapsed % 60;
+          if (ui.voiceTimer) ui.voiceTimer.textContent = (m < 10 ? '0' + m : m) + ':' + (s < 10 ? '0' + s : s);
+          if (elapsed >= 120) {
+            stopAndSend();
+          }
+        }, 1000);
+      } catch (err) {
+        toast('Microphone access denied: ' + (err.message || err));
+      }
+    }
+
+    function cleanupUI() {
+      isRecording = false;
+      clearInterval(recTimerInterval);
+      if (ui.voiceRecordingBar) ui.voiceRecordingBar.hidden = true;
+      if (ui.msgInputWrap) ui.msgInputWrap.hidden = false;
+      if (ui.voiceRecordBtn) ui.voiceRecordBtn.hidden = false;
+      if (ui.sendBtn) ui.sendBtn.hidden = false;
+    }
+
+    function cancelRecording() {
+      if (!isRecording) return;
+      cleanupUI();
+      if (mediaRecorder) {
+        try {
+          mediaRecorder.stream.getTracks().forEach(function (t) { t.stop(); });
+          mediaRecorder.stop();
+        } catch (e) {}
+      }
+      mediaRecorder = null;
+      audioChunks = [];
+      toast('Voice recording cancelled');
+    }
+
+    function stopAndSend() {
+      if (!isRecording || !mediaRecorder) return;
+      var durationSec = Math.max(1, Math.floor((Date.now() - recStartTs) / 1000));
+      cleanupUI();
+
+      mediaRecorder.onstop = function () {
+        var blob = new Blob(audioChunks, { type: (mediaRecorder && mediaRecorder.mimeType) || 'audio/webm' });
+        try {
+          mediaRecorder.stream.getTracks().forEach(function (t) { t.stop(); });
+        } catch (e) {}
+        mediaRecorder = null;
+        audioChunks = [];
+
+        var reader = new FileReader();
+        reader.onload = function () {
+          var dataUrl = reader.result;
+          var audioContent = '[audio:' + durationSec + ':' + dataUrl + ']';
+          if (state.replyingTo) {
+            audioContent = '[reply:' + encodeURIComponent(state.replyingTo.author) + ':' + encodeURIComponent(state.replyingTo.text) + ']' + audioContent;
+            clearReplyingTo();
+          }
+
+          var m = {
+            id: uuid(), user_id: state.user.id, display_name: state.name, content: audioContent,
+            raw: null, ts: Date.now(), status: 'sending', seq: ++state.seq
+          };
+          state.msgs.set(m.id, m);
+          render('bottom');
+          playSendSound();
+          insert(m);
+        };
+        reader.readAsDataURL(blob);
+      };
+
+      try {
+        mediaRecorder.stop();
+      } catch (e) {}
+    }
+
+    function init() {
+      if (ui.voiceRecordBtn) {
+        ui.voiceRecordBtn.addEventListener('click', startRecording);
+      }
+      if (ui.voiceCancelBtn) {
+        ui.voiceCancelBtn.addEventListener('click', cancelRecording);
+      }
+      if (ui.voiceSendBtn) {
+        ui.voiceSendBtn.addEventListener('click', stopAndSend);
+      }
+    }
+
+    return {
+      init: init,
+      startRecording: startRecording,
+      cancelRecording: cancelRecording,
+      stopAndSend: stopAndSend
+    };
+  })();
+
+  // ---------- QR Code Modal & 1-Scan Pairing ----------
+  function openQRModal() {
+    if (!ui.qrModal) return;
+    var base = location.href.split('?')[0].split('#')[0];
+    var url = base + '?room=' + encodeURIComponent(state.room || 'general');
+    if (state.roomKey) {
+      url += '&key=' + encodeURIComponent(state.roomKey);
+    }
+    if (ui.qrRoomName) ui.qrRoomName.textContent = state.roomDisplayName || state.room || 'General Chat';
+    if (ui.qrRoomId) ui.qrRoomId.textContent = '#' + (state.room || 'general');
+
+    if (ui.qrContainer && typeof qrcode === 'function') {
+      try {
+        var qr = qrcode(0, 'M');
+        qr.addData(url);
+        qr.make();
+        ui.qrContainer.innerHTML = qr.createSvgTag(6, 4);
+      } catch (e) {
+        ui.qrContainer.innerHTML = '<div style="padding: 20px; font-size: 13px;">Error generating QR code</div>';
+      }
+    }
+    ui.qrModal.hidden = false;
+  }
+
+  function closeQRModal() {
+    if (ui.qrModal) ui.qrModal.hidden = true;
+  }
+
+  if (ui.qrBtn) {
+    ui.qrBtn.addEventListener('click', openQRModal);
+  }
+  if (ui.qrCloseBtn) {
+    ui.qrCloseBtn.addEventListener('click', closeQRModal);
+  }
+  if (ui.qrCopyBtn) {
+    ui.qrCopyBtn.addEventListener('click', async function () {
+      if (ui.copyBtn) ui.copyBtn.click();
+    });
+  }
+
+  // ---------- Quoted Replies & Reactions State ----------
+  state.replyingTo = null;
+  var activeReactions = {}; // msgId -> { emoji: [userIds...] }
+
+  function setReplyingTo(msgId, authorName, text) {
+    state.replyingTo = { id: msgId, author: authorName, text: text };
+    if (ui.replyPreviewBar) {
+      if (ui.replyToName) ui.replyToName.textContent = 'Replying to ' + authorName;
+      if (ui.replyToSnippet) ui.replyToSnippet.textContent = text;
+      ui.replyPreviewBar.hidden = false;
+    }
+    if (ui.input) ui.input.focus();
+  }
+
+  function clearReplyingTo() {
+    state.replyingTo = null;
+    if (ui.replyPreviewBar) ui.replyPreviewBar.hidden = true;
+  }
+
+  if (ui.replyCancelBtn) {
+    ui.replyCancelBtn.addEventListener('click', clearReplyingTo);
+  }
+
+  function toggleReaction(msgId, emoji) {
+    if (!state.user) return;
+    if (!activeReactions[msgId]) activeReactions[msgId] = {};
+    if (!activeReactions[msgId][emoji]) activeReactions[msgId][emoji] = [];
+    var users = activeReactions[msgId][emoji];
+    var myId = state.user.id;
+    var idx = users.indexOf(myId);
+    if (idx > -1) {
+      users.splice(idx, 1);
+    } else {
+      users.push(myId);
+    }
+    render('keep');
+
+    if (state.channel) {
+      state.channel.send({
+        type: 'broadcast',
+        event: 'msg_react',
+        payload: { msgId: msgId, emoji: emoji, userId: myId, userName: state.name }
+      });
+    }
+  }
+
+  function buildReactionBar(msgId, authorName, textSnippet) {
+    var bar = el('div', 'reaction-bar');
+    ['❤️', '👍', '😂', '🔥', '👏'].forEach(function (emoji) {
+      var btn = el('button', 'btn-react-emoji', emoji);
+      btn.type = 'button';
+      btn.onclick = function (e) {
+        e.stopPropagation();
+        toggleReaction(msgId, emoji);
+      };
+      bar.append(btn);
+    });
+
+    var replyBtn = el('button', 'btn-react-reply', '↩️');
+    replyBtn.type = 'button';
+    replyBtn.title = 'Reply to this message';
+    replyBtn.onclick = function (e) {
+      e.stopPropagation();
+      setReplyingTo(msgId, authorName, textSnippet);
+    };
+    bar.append(replyBtn);
+
+    return bar;
+  }
+
+  function buildReactionBadges(msgId) {
+    var reacts = activeReactions[msgId];
+    if (!reacts) return null;
+    var keys = Object.keys(reacts).filter(function (k) { return reacts[k] && reacts[k].length > 0; });
+    if (!keys.length) return null;
+
+    var container = el('div', 'reaction-badges');
+    var myId = state.user && state.user.id;
+    keys.forEach(function (emoji) {
+      var count = reacts[emoji].length;
+      var hasMine = myId && reacts[emoji].indexOf(myId) > -1;
+      var badge = el('button', 'reaction-badge' + (hasMine ? ' my-react' : ''));
+      badge.type = 'button';
+      badge.innerHTML = emoji + ' ' + (count > 1 ? count : '');
+      badge.onclick = function (e) {
+        e.stopPropagation();
+        toggleReaction(msgId, emoji);
+      };
+      container.append(badge);
+    });
+    return container;
+  }
+
+  function buildVoicePlayer(src, durationSec, isMine) {
+    var container = el('div', 'voice-player-bubble');
+    var audio = new Audio(src);
+    var playBtn = el('button', 'voice-play-btn');
+    playBtn.type = 'button';
+    playBtn.innerHTML = '<svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"currentColor\"><polygon points=\"5 3 19 12 5 21 5 3\"/></svg>';
+
+    var waveWrap = el('div', 'voice-waveform-wrap');
+    var waveBars = el('div', 'voice-waveform-bars');
+    var heights = [35, 60, 45, 90, 70, 40, 85, 100, 65, 80, 50, 75, 95, 60, 40, 70];
+    var barElements = [];
+    heights.forEach(function (h) {
+      var bar = el('span', 'voice-bar-segment');
+      bar.style.height = h + '%';
+      waveBars.append(bar);
+      barElements.push(bar);
+    });
+
+    var sub = el('div', 'voice-player-sub');
+    var timeDisplay = el('span', null, formatDuration(durationSec));
+    var speedPill = el('button', 'voice-speed-pill', '1×');
+    speedPill.type = 'button';
+    var speeds = [1, 1.5, 2];
+    var speedIdx = 0;
+    speedPill.onclick = function (e) {
+      e.stopPropagation();
+      speedIdx = (speedIdx + 1) % speeds.length;
+      audio.playbackRate = speeds[speedIdx];
+      speedPill.textContent = speeds[speedIdx] + '×';
+    };
+
+    sub.append(timeDisplay, speedPill);
+    waveWrap.append(waveBars, sub);
+    container.append(playBtn, waveWrap);
+
+    var isPlaying = false;
+    playBtn.onclick = function () {
+      if (isPlaying) {
+        audio.pause();
+      } else {
+        unlockAudio();
+        audio.play().catch(function () {});
+      }
+    };
+
+    audio.onplay = function () {
+      isPlaying = true;
+      playBtn.innerHTML = '<svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"currentColor\"><rect x=\"6\" y=\"4\" width=\"4\" height=\"16\"/><rect x=\"14\" y=\"4\" width=\"4\" height=\"16\"/></svg>';
+    };
+    audio.onpause = audio.onended = function () {
+      isPlaying = false;
+      playBtn.innerHTML = '<svg viewBox=\"0 0 24 24\" width=\"18\" height=\"18\" fill=\"currentColor\"><polygon points=\"5 3 19 12 5 21 5 3\"/></svg>';
+      if (audio.ended) {
+        barElements.forEach(function (b) { b.classList.remove('played'); });
+        timeDisplay.textContent = formatDuration(durationSec);
+      }
+    };
+    audio.ontimeupdate = function () {
+      if (audio.duration) {
+        var progress = audio.currentTime / audio.duration;
+        var activeBarCount = Math.floor(progress * barElements.length);
+        barElements.forEach(function (b, idx) {
+          b.classList.toggle('played', idx <= activeBarCount);
+        });
+        timeDisplay.textContent = formatDuration(Math.floor(audio.currentTime));
+      }
+    };
+
+    return container;
+  }
 
   // ---------- Supabase Client ----------
   function isConfigured() {
@@ -1374,7 +1852,34 @@
         b.append(img);
       }
     }
-    if (m.content) b.append(el('div', 'text', m.content));
+    var rawContent = m.content || '';
+    var textSnippet = rawContent;
+
+    // 1. Quoted Reply Box (iMessage Style)
+    var replyMatch = rawContent.match(/^\[reply:([^:]+):([^\]]+)\]/);
+    if (replyMatch) {
+      try {
+        var repAuthor = decodeURIComponent(replyMatch[1]);
+        var repText = decodeURIComponent(replyMatch[2]);
+        var repBox = el('div', 'quoted-message-box');
+        repBox.innerHTML = '<strong>' + escapeHtml(repAuthor) + '</strong><span>' + escapeHtml(repText) + '</span>';
+        b.append(repBox);
+        rawContent = rawContent.substring(replyMatch[0].length);
+        textSnippet = rawContent;
+      } catch (e) {}
+    }
+
+    // 2. Audio Voice Player vs Plain Text
+    var audioMatch = rawContent.match(/^\[audio:(\d+):([^\]]+)\]/);
+    if (audioMatch) {
+      var durSec = parseInt(audioMatch[1], 10) || 0;
+      var audioSrc = audioMatch[2];
+      var audioPlayer = buildVoicePlayer(audioSrc, durSec, mine);
+      b.append(audioPlayer);
+      textSnippet = 'Voice note (' + durSec + 's)';
+    } else if (rawContent) {
+      b.append(el('div', 'text', rawContent));
+    }
 
     var meta = el('div', 'meta');
     if (m.status === 'sending') {
@@ -1401,6 +1906,15 @@
       }
     }
     b.append(meta);
+
+    // 3. iMessage Quick Reaction Bar & Badges
+    if (m.status === 'sent') {
+      var reactBar = buildReactionBar(m.id, m.display_name, textSnippet);
+      b.append(reactBar);
+      var badges = buildReactionBadges(m.id);
+      if (badges) b.append(badges);
+    }
+
     row.append(b);
     return row;
   }
@@ -1754,6 +2268,19 @@
     .on('broadcast', { event: 'call_end' }, function (payload) {
       if (payload && payload.payload) CallManager.handleCallEnd(payload.payload);
     })
+    // Realtime Emoji Reactions
+    .on('broadcast', { event: 'msg_react' }, function (payload) {
+      if (payload && payload.payload) {
+        var p = payload.payload;
+        if (!activeReactions[p.msgId]) activeReactions[p.msgId] = {};
+        if (!activeReactions[p.msgId][p.emoji]) activeReactions[p.msgId][p.emoji] = [];
+        var users = activeReactions[p.msgId][p.emoji];
+        if (users.indexOf(p.userId) === -1) {
+          users.push(p.userId);
+          render('keep');
+        }
+      }
+    })
     // 2. Database postgres_changes fallback (filtered in JavaScript to avoid walrus filter bugs)
     .on('postgres_changes',
       { event: 'INSERT', schema: 'public', table: 'messages' },
@@ -1891,6 +2418,11 @@
       return;
     }
     sendTimestamps.push(now);
+
+    if (state.replyingTo) {
+      text = '[reply:' + encodeURIComponent(state.replyingTo.author) + ':' + encodeURIComponent(state.replyingTo.text) + ']' + text;
+      clearReplyingTo();
+    }
 
     var m = {
       id: uuid(), user_id: state.user.id, display_name: state.name, content: text,
@@ -3325,6 +3857,7 @@
   // ---------- Boot ----------
   async function boot() {
     CallManager.init();
+    VoiceManager.init();
     if (!isConfigured() || !window.supabase) { show('setup'); return; }
     sb = window.supabase.createClient(cfg.SUPABASE_URL, cfg.SUPABASE_PUBLISHABLE_KEY, {
       auth: { persistSession: true, autoRefreshToken: true },

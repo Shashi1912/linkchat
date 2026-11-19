@@ -2315,6 +2315,436 @@ button:active, .room-btn-apple:active, .segment-tab:active {
   margin: 0 0 8px 0;
 }
 
+/* ---------- QR Code Modal (Instant Scan & Connect) ---------- */
+.qr-card {
+  max-width: 340px;
+  text-align: center;
+  align-items: center;
+}
+.qr-modal-header h3 {
+  font-size: 19px;
+  font-weight: 650;
+  color: var(--apple-label);
+  margin: 0 0 4px 0;
+}
+.qr-container {
+  background: #ffffff;
+  padding: 14px;
+  border-radius: var(--apple-radius-md);
+  box-shadow: var(--apple-shadow-sm);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 16px 0;
+  border: 1px solid var(--apple-border);
+}
+.qr-container svg {
+  display: block;
+  max-width: 100%;
+  height: auto;
+}
+.qr-room-info {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+  margin-bottom: 16px;
+}
+.qr-room-info strong {
+  font-size: 15px;
+  color: var(--apple-label);
+}
+.qr-room-info code {
+  font-size: 12px;
+  padding: 3px 8px;
+  border-radius: 6px;
+  background: var(--apple-secondary-surface);
+  color: var(--apple-secondary-label);
+}
+
+/* ---------- Quoted Reply Preview Bar & Quoted Bubble ---------- */
+.reply-preview-bar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  background: var(--apple-surface);
+  backdrop-filter: var(--apple-blur);
+  -webkit-backdrop-filter: var(--apple-blur);
+  border: 1px solid var(--apple-border);
+  border-bottom: none;
+  border-radius: var(--apple-radius-md) var(--apple-radius-md) 0 0;
+  margin: 0 16px -1px 16px;
+  animation: slideUpReply 0.25s var(--apple-spring-bounce);
+}
+@keyframes slideUpReply {
+  from { opacity: 0; transform: translateY(10px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+.reply-preview-accent {
+  width: 3.5px;
+  align-self: stretch;
+  background: #007aff;
+  border-radius: 999px;
+  flex: none;
+}
+.reply-preview-content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.reply-preview-content strong {
+  font-size: 12px;
+  font-weight: 600;
+  color: #007aff;
+}
+.reply-preview-content span {
+  font-size: 12px;
+  color: var(--apple-secondary-label);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.btn-reply-cancel {
+  border: none;
+  background: var(--apple-secondary-surface);
+  color: var(--apple-secondary-label);
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  font-size: 11px;
+}
+
+.quoted-message-box {
+  display: flex;
+  gap: 8px;
+  padding: 6px 10px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.08);
+  margin-bottom: 6px;
+  font-size: 12px;
+  border-left: 3px solid #007aff;
+}
+[data-theme="dark"] .quoted-message-box {
+  background: rgba(255, 255, 255, 0.12);
+}
+.msg.own .quoted-message-box {
+  background: rgba(255, 255, 255, 0.2);
+  border-left-color: #ffffff;
+}
+.quoted-message-box strong {
+  font-size: 11.5px;
+  font-weight: 600;
+  display: block;
+}
+.quoted-message-box span {
+  opacity: 0.85;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  display: block;
+}
+
+/* ---------- Voice Recording Bar & Audio Message Player ---------- */
+.voice-recording-bar {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 4px 8px;
+  animation: voiceBarAppear 0.25s var(--apple-spring-bounce);
+}
+@keyframes voiceBarAppear {
+  from { opacity: 0; transform: scale(0.95); }
+  to { opacity: 1; transform: scale(1); }
+}
+.voice-pulse-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: #ff3b30;
+  box-shadow: 0 0 10px rgba(255, 59, 48, 0.7);
+  animation: voiceRecPulse 1s infinite alternate ease-in-out;
+  flex: none;
+}
+@keyframes voiceRecPulse {
+  from { transform: scale(0.85); opacity: 0.7; }
+  to { transform: scale(1.25); opacity: 1; }
+}
+.voice-timer {
+  font-size: 13px;
+  font-weight: 650;
+  font-variant-numeric: tabular-nums;
+  color: #ff3b30;
+  flex: none;
+}
+.voice-wave-visualizer {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  height: 20px;
+}
+.voice-wave-visualizer span {
+  flex: 1;
+  background: #ff3b30;
+  border-radius: 999px;
+  height: 4px;
+  animation: voiceWaveBounce 0.8s infinite ease-in-out alternate;
+}
+.voice-wave-visualizer span:nth-child(2) { animation-delay: 0.1s; }
+.voice-wave-visualizer span:nth-child(3) { animation-delay: 0.25s; }
+.voice-wave-visualizer span:nth-child(4) { animation-delay: 0.4s; }
+.voice-wave-visualizer span:nth-child(5) { animation-delay: 0.15s; }
+.voice-wave-visualizer span:nth-child(6) { animation-delay: 0.3s; }
+.voice-wave-visualizer span:nth-child(7) { animation-delay: 0.2s; }
+.voice-wave-visualizer span:nth-child(8) { animation-delay: 0.35s; }
+
+@keyframes voiceWaveBounce {
+  0% { height: 4px; opacity: 0.4; }
+  100% { height: 18px; opacity: 1; }
+}
+
+.btn-voice-cancel {
+  border: none;
+  background: var(--apple-secondary-surface);
+  color: #ff3b30;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  flex: none;
+}
+.btn-voice-send {
+  border: none;
+  background: #007aff;
+  color: white;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  flex: none;
+  box-shadow: 0 2px 8px rgba(0, 122, 255, 0.4);
+}
+
+.voice-player-bubble {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 4px;
+  min-width: 210px;
+}
+.voice-play-btn {
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.12);
+  color: currentColor;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  flex: none;
+  transition: transform 0.2s var(--apple-spring);
+}
+.msg.own .voice-play-btn {
+  background: rgba(255, 255, 255, 0.25);
+}
+.voice-play-btn:hover {
+  transform: scale(1.08);
+}
+.voice-waveform-wrap {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-width: 0;
+}
+.voice-waveform-bars {
+  display: flex;
+  align-items: center;
+  gap: 2.5px;
+  height: 22px;
+  cursor: pointer;
+}
+.voice-bar-segment {
+  flex: 1;
+  border-radius: 2px;
+  background: currentColor;
+  opacity: 0.45;
+  transition: height 0.2s ease, opacity 0.2s ease;
+}
+.voice-bar-segment.played {
+  opacity: 1;
+}
+.voice-player-sub {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 11px;
+  font-variant-numeric: tabular-nums;
+  opacity: 0.8;
+}
+.voice-speed-pill {
+  border: none;
+  background: rgba(0, 0, 0, 0.12);
+  color: currentColor;
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 650;
+  padding: 2px 7px;
+  cursor: pointer;
+}
+.msg.own .voice-speed-pill {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* ---------- Quick Reaction Bar & Badges ---------- */
+.msg-bubble-wrap {
+  position: relative;
+  display: inline-block;
+  max-width: 100%;
+}
+.reaction-bar {
+  position: absolute;
+  top: -38px;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  background: var(--apple-surface);
+  backdrop-filter: var(--apple-blur);
+  -webkit-backdrop-filter: var(--apple-blur);
+  border: 1px solid var(--apple-border);
+  border-radius: 999px;
+  box-shadow: var(--apple-shadow-md);
+  z-index: 10;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(6px) scale(0.92);
+  transition: opacity 0.2s ease, transform 0.2s var(--apple-spring-bounce);
+}
+.msg:hover .reaction-bar,
+.msg.active-react .reaction-bar {
+  opacity: 1;
+  pointer-events: auto;
+  transform: translateY(0) scale(1);
+}
+.msg.own .reaction-bar {
+  right: 0;
+}
+.msg:not(.own) .reaction-bar {
+  left: 0;
+}
+.btn-react-emoji, .btn-react-reply {
+  border: none;
+  background: transparent;
+  font-size: 16px;
+  cursor: pointer;
+  padding: 3px 5px;
+  border-radius: 6px;
+  transition: transform 0.15s ease;
+  line-height: 1;
+}
+.btn-react-emoji:hover, .btn-react-reply:hover {
+  transform: scale(1.3);
+}
+
+.reaction-badges {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  margin-top: 3px;
+}
+.msg.own .reaction-badges {
+  justify-content: flex-end;
+}
+.reaction-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: var(--apple-surface);
+  border: 1px solid var(--apple-border);
+  font-size: 11.5px;
+  cursor: pointer;
+  box-shadow: var(--apple-shadow-sm);
+  transition: transform 0.15s ease, background 0.15s ease;
+}
+.reaction-badge:hover {
+  transform: scale(1.08);
+}
+.reaction-badge.my-react {
+  border-color: #007aff;
+  background: rgba(0, 122, 255, 0.15);
+}
+
+/* ---------- WebRTC Video Call Floating Container ---------- */
+.apple-video-container {
+  position: fixed;
+  top: max(72px, env(safe-area-inset-top));
+  right: max(16px, env(safe-area-inset-right));
+  width: min(340px, 92vw);
+  height: min(240px, 35vh);
+  z-index: 1002;
+  border-radius: var(--apple-radius-lg);
+  overflow: hidden;
+  box-shadow: 0 20px 50px rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  background: #000;
+  animation: callSlideDown 0.4s var(--apple-spring-bounce) forwards;
+}
+.video-grid {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+.remote-video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  background: #111;
+}
+.local-video-pip {
+  position: absolute;
+  bottom: 10px;
+  right: 10px;
+  width: 80px;
+  height: 105px;
+  object-fit: cover;
+  border-radius: 12px;
+  border: 1.5px solid rgba(255, 255, 255, 0.4);
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.5);
+  background: #222;
+  z-index: 2;
+}
+.btn-video-pip-close {
+  position: absolute;
+  top: 8px;
+  right: 8px;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(0, 0, 0, 0.55);
+  color: white;
+  font-size: 11px;
+  cursor: pointer;
+  display: grid;
+  place-items: center;
+  z-index: 3;
+}
+
 /* ---------- Accessibility & Reduced Motion / Transparency (§14) ---------- */
 @media (prefers-reduced-motion: reduce) {
   * {
