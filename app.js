@@ -66,7 +66,14 @@
     leaveBtn: $('leave-btn'),
     panicBtn: $('panic-btn'),
     privacyShield: $('privacy-shield'),
+    privacyShieldTitle: $('privacy-shield-title'),
+    privacyShieldDesc: $('privacy-shield-desc'),
+    privacyUnlockForm: $('privacy-unlock-form'),
+    privacyKeyGroup: $('privacy-key-group'),
+    privacyKeyInput: $('privacy-key-input'),
+    privacyKeyError: $('privacy-key-error'),
     privacyUnlockBtn: $('privacy-unlock-btn'),
+    privacyExitBtn: $('privacy-exit-btn'),
     // QR Code Modal
     qrBtn: $('qr-btn'), qrModal: $('qr-modal'), qrContainer: $('qr-container'),
     qrRoomName: $('qr-room-name'), qrRoomId: $('qr-room-id'), qrCopyBtn: $('qr-copy-btn'), qrCloseBtn: $('qr-close-btn'),
@@ -2464,9 +2471,14 @@
     });
   }
 
-  ui.attachBtn.addEventListener('click', function () { ui.fileInput.click(); });
+  var isChoosingFile = false;
+  ui.attachBtn.addEventListener('click', function () {
+    isChoosingFile = true;
+    ui.fileInput.click();
+  });
 
   ui.fileInput.addEventListener('change', async function () {
+    isChoosingFile = false;
     var file = ui.fileInput.files && ui.fileInput.files[0];
     ui.fileInput.value = '';
     if (!file || !state.user) return;
@@ -3811,16 +3823,62 @@
   // ---------- Privacy Shield (Anti-Peeking on Inactive Tab / App Switcher) ----------
   function updatePrivacyShield(show) {
     if (!ui.privacyShield) return;
-    if (show && state.room && state.room !== 'general') {
-      ui.privacyShield.hidden = false;
-    } else if (!show) {
+    if (show) {
+      if (isChoosingFile) return;
+      if (!state.room) return; // Not inside an active chat session
+
+      if (state.room !== 'general') {
+        // Private room: Require password / access key to unlock
+        if (ui.privacyShieldTitle) ui.privacyShieldTitle.textContent = 'Chat Locked';
+        if (ui.privacyShieldDesc) ui.privacyShieldDesc.textContent = 'Enter room password to resume your chat.';
+        if (ui.privacyKeyGroup) ui.privacyKeyGroup.hidden = false;
+        if (ui.privacyExitBtn) ui.privacyExitBtn.hidden = false;
+        if (ui.privacyUnlockBtn) ui.privacyUnlockBtn.textContent = 'Unlock Chat';
+        if (ui.privacyKeyInput) {
+          ui.privacyKeyInput.value = '';
+          ui.privacyKeyInput.disabled = false;
+        }
+        if (ui.privacyKeyError) {
+          ui.privacyKeyError.textContent = '';
+          ui.privacyKeyError.style.display = 'none';
+        }
+        ui.privacyShield.hidden = false;
+        setTimeout(function () {
+          if (ui.privacyKeyInput && !ui.privacyShield.hidden) {
+            ui.privacyKeyInput.focus();
+          }
+        }, 120);
+      } else {
+        // Public 'general' room: screen protection tap to dismiss
+        if (ui.privacyShieldTitle) ui.privacyShieldTitle.textContent = 'Chat Hidden';
+        if (ui.privacyShieldDesc) ui.privacyShieldDesc.textContent = 'Screen protected while you were away.';
+        if (ui.privacyKeyGroup) ui.privacyKeyGroup.hidden = true;
+        if (ui.privacyExitBtn) ui.privacyExitBtn.hidden = true;
+        if (ui.privacyUnlockBtn) ui.privacyUnlockBtn.textContent = 'Tap to View';
+        if (ui.privacyKeyError) {
+          ui.privacyKeyError.textContent = '';
+          ui.privacyKeyError.style.display = 'none';
+        }
+        ui.privacyShield.hidden = false;
+      }
+    } else {
       ui.privacyShield.hidden = true;
+      if (ui.privacyKeyInput) ui.privacyKeyInput.value = '';
+      if (ui.privacyKeyError) {
+        ui.privacyKeyError.textContent = '';
+        ui.privacyKeyError.style.display = 'none';
+      }
     }
   }
 
   document.addEventListener('visibilitychange', function () {
     if (document.hidden) {
       updatePrivacyShield(true);
+    } else {
+      // Returned to tab: focus the password input if locked
+      if (ui.privacyShield && !ui.privacyShield.hidden && ui.privacyKeyInput && ui.privacyKeyGroup && !ui.privacyKeyGroup.hidden) {
+        setTimeout(function () { ui.privacyKeyInput.focus(); }, 120);
+      }
     }
   });
 
@@ -3828,9 +3886,91 @@
     updatePrivacyShield(true);
   });
 
-  if (ui.privacyUnlockBtn) {
-    ui.privacyUnlockBtn.addEventListener('click', function () {
+  window.addEventListener('focus', function () {
+    // If returning from an OS picker (e.g. file selection)
+    setTimeout(function () { isChoosingFile = false; }, 300);
+    if (ui.privacyShield && !ui.privacyShield.hidden && ui.privacyKeyInput && ui.privacyKeyGroup && !ui.privacyKeyGroup.hidden) {
+      setTimeout(function () { ui.privacyKeyInput.focus(); }, 120);
+    }
+  });
+
+  if (ui.privacyUnlockForm) {
+    ui.privacyUnlockForm.addEventListener('submit', async function (e) {
+      e.preventDefault();
+
+      // If general or no room, unlock immediately
+      if (!state.room || state.room === 'general') {
+        updatePrivacyShield(false);
+        return;
+      }
+
+      var roomId = state.room;
+      var lockSec = RoomSecurity.getLockRemaining(roomId);
+      if (lockSec > 0) {
+        if (ui.privacyKeyError) {
+          ui.privacyKeyError.textContent = '🔒 Too many failed attempts. Wait ' + lockSec + 's.';
+          ui.privacyKeyError.style.display = 'block';
+        }
+        return;
+      }
+
+      var enteredKey = (ui.privacyKeyInput ? ui.privacyKeyInput.value : '').trim();
+      if (!enteredKey) {
+        if (ui.privacyKeyError) {
+          ui.privacyKeyError.textContent = 'Please enter room password.';
+          ui.privacyKeyError.style.display = 'block';
+        }
+        if (ui.privacyKeyInput) ui.privacyKeyInput.focus();
+        return;
+      }
+
+      // Check entered password against in-memory room key or server RPC
+      var isKeyValid = false;
+      if (state.roomKey && enteredKey === state.roomKey) {
+        isKeyValid = true;
+      } else {
+        try {
+          if (sb && typeof sb.rpc === 'function') {
+            var res = await sb.rpc('join_room', { p_room_id: roomId, p_access_key: enteredKey });
+            if (res && res.data && res.data.ok) {
+              isKeyValid = true;
+              state.roomKey = enteredKey;
+            }
+          }
+        } catch (rpcErr) {
+          isKeyValid = (state.roomKey && enteredKey === state.roomKey);
+        }
+      }
+
+      if (isKeyValid) {
+        RoomSecurity.recordSuccess(roomId);
+        updatePrivacyShield(false);
+        toast('Chat unlocked 🔓');
+      } else {
+        var rem = RoomSecurity.recordFailure(roomId);
+        if (ui.privacyKeyInput) {
+          ui.privacyKeyInput.value = '';
+          ui.privacyKeyInput.focus();
+        }
+        if (ui.privacyKeyError) {
+          if (rem > 0) {
+            ui.privacyKeyError.textContent = '🔒 Incorrect password. Locked for ' + rem + 's.';
+          } else {
+            ui.privacyKeyError.textContent = '🔒 Incorrect password. Please try again.';
+          }
+          ui.privacyKeyError.style.display = 'block';
+        }
+      }
+    });
+  }
+
+  if (ui.privacyExitBtn) {
+    ui.privacyExitBtn.addEventListener('click', function () {
+      leaveChat();
+      clearStoredRoomKeys();
       updatePrivacyShield(false);
+      showRoomPicker();
+      toast('Exited private room');
     });
   }
 

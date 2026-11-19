@@ -649,9 +649,16 @@
           <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
         </svg>
       </div>
-      <h3>Chat Hidden</h3>
-      <p>Screen protected while you were away.</p>
-      <button id="privacy-unlock-btn" type="button" class="btn-apple-primary" style="width: 100%;">Tap to Unlock</button>
+      <h3 id="privacy-shield-title">Chat Locked</h3>
+      <p id="privacy-shield-desc">Enter room password to resume your private chat.</p>
+      <form id="privacy-unlock-form" class="privacy-shield-form">
+        <div id="privacy-key-group" class="input-group">
+          <input id="privacy-key-input" type="password" maxlength="64" placeholder="Enter Room Password" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
+        </div>
+        <p id="privacy-key-error" class="form-error" role="alert" style="display: none;"></p>
+        <button id="privacy-unlock-btn" type="submit" class="btn-apple-primary" style="width: 100%;">Unlock Chat</button>
+        <button id="privacy-exit-btn" type="button" class="btn-apple-cancel" style="width: 100%;">Exit to Room List</button>
+      </form>
     </div>
   </aside>
 
@@ -677,6 +684,6 @@
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
   <script src="config.js"></script>
   <script src="qr.min.js"></script>
-  <script src="app.js?v=3.8"></script>
+  <script src="app.js?v=3.9"></script>
 </body>
 </html>

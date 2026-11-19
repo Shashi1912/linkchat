@@ -2282,12 +2282,48 @@ button:active, .room-btn-apple:active, .segment-tab:active {
   border-radius: var(--apple-radius-lg);
   padding: 28px 24px;
   text-align: center;
-  max-width: 320px;
+  max-width: 330px;
   width: 100%;
   display: flex;
   flex-direction: column;
   align-items: center;
   gap: 12px;
+}
+
+.privacy-shield-form {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.privacy-shield-card input {
+  border: 1px solid var(--apple-separator);
+  background: var(--apple-secondary-surface);
+  border-radius: 12px;
+  padding: 10px 14px;
+  font-size: 15px;
+  height: 42px;
+  min-height: 42px;
+  width: 100%;
+  color: var(--apple-label);
+  text-align: center;
+  transition: border-color 0.15s, background-color 0.15s, box-shadow 0.15s;
+  box-sizing: border-box;
+}
+
+.privacy-shield-card input:focus {
+  outline: none;
+  background: var(--apple-surface-solid);
+  border-color: var(--apple-blue);
+  box-shadow: 0 0 0 3px rgba(0, 122, 255, 0.2);
+}
+
+.privacy-shield-card .form-error {
+  margin: 0;
+  font-size: 12.5px;
+  text-align: center;
+  min-height: 16px;
 }
 
 .privacy-shield-icon {
@@ -2312,7 +2348,7 @@ button:active, .room-btn-apple:active, .segment-tab:active {
 .privacy-shield-card p {
   font-size: 13px;
   color: var(--apple-secondary-label);
-  margin: 0 0 8px 0;
+  margin: 0;
 }
 
 /* ---------- QR Code Modal (Instant Scan & Connect) ---------- */
