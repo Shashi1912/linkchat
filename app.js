@@ -3631,7 +3631,9 @@
     state.channel = null;
     if (ch) {
       try { ch.untrack(); } catch (e) {}
-      sb.removeChannel(ch);
+      if (sb && typeof sb.removeChannel === 'function') {
+        try { sb.removeChannel(ch); } catch (e) {}
+      }
     }
     state.msgs = new Map();
     state.ready = false;
