@@ -1620,8 +1620,11 @@ button:active, .room-btn-apple:active, .segment-tab:active {
 .row.cont {
   margin-top: 3px;
 }
-.row.mine {
+.row.mine, .row.own {
   justify-content: flex-end;
+}
+.row.theirs, .row.other {
+  justify-content: flex-start;
 }
 
 @keyframes bubbleSpringIn {
@@ -1630,6 +1633,7 @@ button:active, .room-btn-apple:active, .segment-tab:active {
 }
 
 .bubble {
+  position: relative;
   max-width: min(78%, 560px);
   padding: 9px 13px 8px;
   font-size: 15px;
@@ -2662,25 +2666,37 @@ button:active, .room-btn-apple:active, .segment-tab:active {
   -webkit-backdrop-filter: var(--apple-blur);
   border: 1px solid var(--apple-border);
   border-radius: 999px;
-  box-shadow: var(--apple-shadow-md);
-  z-index: 10;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.16);
+  z-index: 50;
   opacity: 0;
   pointer-events: none;
   transform: translateY(6px) scale(0.92);
-  transition: opacity 0.2s ease, transform 0.2s var(--apple-spring-bounce);
+  transition: opacity 0.18s ease, transform 0.18s var(--apple-spring-bounce);
 }
+
+.row:hover .reaction-bar,
+.bubble:hover .reaction-bar,
+.row.active-react .reaction-bar,
+.bubble.active-react .reaction-bar,
 .msg:hover .reaction-bar,
 .msg.active-react .reaction-bar {
   opacity: 1;
   pointer-events: auto;
   transform: translateY(0) scale(1);
 }
+
+.row.mine .reaction-bar,
+.row.own .reaction-bar,
 .msg.own .reaction-bar {
   right: 0;
 }
+
+.row.theirs .reaction-bar,
+.row.other .reaction-bar,
 .msg:not(.own) .reaction-bar {
   left: 0;
 }
+
 .btn-react-emoji, .btn-react-reply {
   border: none;
   background: transparent;
@@ -2691,6 +2707,7 @@ button:active, .room-btn-apple:active, .segment-tab:active {
   transition: transform 0.15s ease;
   line-height: 1;
 }
+
 .btn-react-emoji:hover, .btn-react-reply:hover {
   transform: scale(1.3);
 }
@@ -2699,10 +2716,16 @@ button:active, .room-btn-apple:active, .segment-tab:active {
   display: flex;
   flex-wrap: wrap;
   gap: 4px;
-  margin-top: 3px;
+  margin-top: 4px;
 }
+.row.mine .reaction-badges,
+.row.own .reaction-badges,
 .msg.own .reaction-badges {
   justify-content: flex-end;
+}
+.row.theirs .reaction-badges,
+.row.other .reaction-badges {
+  justify-content: flex-start;
 }
 .reaction-badge {
   display: inline-flex;

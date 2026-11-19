@@ -119,6 +119,7 @@
 
   // ---------- State ----------
   var state = {
+    clientId: uuid(),
     user: null,
     name: '',
     room: DEFAULT_ROOM,
@@ -1554,21 +1555,23 @@
     if (!activeReactions[msgId]) activeReactions[msgId] = {};
     if (!activeReactions[msgId][emoji]) activeReactions[msgId][emoji] = [];
     var users = activeReactions[msgId][emoji];
-    var myId = state.user.id;
-    var idx = users.indexOf(myId);
+    var myKey = state.name || (state.user ? state.user.id : 'me');
+    var idx = users.indexOf(myKey);
     if (idx > -1) {
       users.splice(idx, 1);
     } else {
-      users.push(myId);
+      users.push(myKey);
     }
     render('keep');
 
     if (state.channel) {
-      state.channel.send({
-        type: 'broadcast',
-        event: 'msg_react',
-        payload: { msgId: msgId, emoji: emoji, userId: myId, userName: state.name }
-      });
+      try {
+        state.channel.send({
+          type: 'broadcast',
+          event: 'msg_react',
+          payload: { msgId: msgId, emoji: emoji, userId: myKey, userName: state.name, clientId: state.clientId }
+        });
+      } catch (e) {}
     }
   }
 
@@ -1577,6 +1580,7 @@
     ['❤️', '👍', '😂', '🔥', '👏'].forEach(function (emoji) {
       var btn = el('button', 'btn-react-emoji', emoji);
       btn.type = 'button';
+      btn.setAttribute('aria-label', 'React ' + emoji);
       btn.onclick = function (e) {
         e.stopPropagation();
         toggleReaction(msgId, emoji);
@@ -1587,6 +1591,7 @@
     var replyBtn = el('button', 'btn-react-reply', '↩️');
     replyBtn.type = 'button';
     replyBtn.title = 'Reply to this message';
+    replyBtn.setAttribute('aria-label', 'Reply');
     replyBtn.onclick = function (e) {
       e.stopPropagation();
       setReplyingTo(msgId, authorName, textSnippet);
@@ -1603,13 +1608,13 @@
     if (!keys.length) return null;
 
     var container = el('div', 'reaction-badges');
-    var myId = state.user && state.user.id;
+    var myKey = state.name || (state.user && state.user.id);
     keys.forEach(function (emoji) {
       var count = reacts[emoji].length;
-      var hasMine = myId && reacts[emoji].indexOf(myId) > -1;
+      var hasMine = myKey && reacts[emoji].indexOf(myKey) > -1;
       var badge = el('button', 'reaction-badge' + (hasMine ? ' my-react' : ''));
       badge.type = 'button';
-      badge.innerHTML = emoji + ' ' + (count > 1 ? count : '');
+      badge.innerHTML = emoji + (count > 1 ? '<span class="reaction-count"> ' + count + '</span>' : '');
       badge.onclick = function (e) {
         e.stopPropagation();
         toggleReaction(msgId, emoji);
@@ -1831,10 +1836,24 @@
   }
 
   function bubble(m, cont) {
-    var mine = state.user && m.user_id === state.user.id;
-    var row = el('div', 'row ' + (mine ? 'mine' : 'theirs') + (cont ? ' cont' : '') +
+    var isMine = Boolean(state.user && m.user_id === state.user.id);
+    if (isMine && m.display_name && state.name && m.display_name.trim().toLowerCase() !== state.name.trim().toLowerCase()) {
+      isMine = false;
+    }
+    if (!isMine && m.display_name && state.name && m.display_name.trim().toLowerCase() === state.name.trim().toLowerCase()) {
+      isMine = true;
+    }
+    var mine = isMine;
+
+    var row = el('div', 'row msg ' + (mine ? 'mine own' : 'theirs other') + (cont ? ' cont' : '') +
       (m.status === 'failed' ? ' is-failed' : '') + (m.status === 'sending' ? ' is-sending' : ''));
     var b = el('div', 'bubble');
+
+    b.onclick = function (e) {
+      if (e.target.closest('button, a, input, .reaction-bar, .reaction-badges')) return;
+      b.classList.toggle('active-react');
+      row.classList.toggle('active-react');
+    };
 
     if (!mine && !cont) {
       var s = el('div', 'sender', m.display_name);
@@ -2036,7 +2055,8 @@
   var activeTypers = new Map(); // user_id -> { name, timer }
 
   function handlePeerTyping(userId, userName) {
-    if (!userId || (state.user && userId === state.user.id)) return;
+    if (!userId) return;
+    if (state.name && userName && userName.trim().toLowerCase() === state.name.trim().toLowerCase()) return;
     if (activeTypers.has(userId)) {
       clearTimeout(activeTypers.get(userId).timer);
     }
@@ -2076,14 +2096,14 @@
   var isTypingBroadcasted = false;
 
   function sendTypingSignal() {
-    if (!state.channel || !state.room || !state.user) return;
+    if (!state.channel || !state.room) return;
     if (!isTypingBroadcasted) {
       isTypingBroadcasted = true;
       try {
         state.channel.send({
           type: 'broadcast',
           event: 'typing',
-          payload: { user_id: state.user.id, name: state.name }
+          payload: { user_id: state.user ? state.user.id : null, name: state.name, clientId: state.clientId }
         });
       } catch (e) {}
     }
@@ -2095,13 +2115,13 @@
 
   function stopTypingSignal() {
     clearTimeout(typingSignalTimer);
-    if (isTypingBroadcasted && state.channel && state.room && state.user) {
+    if (isTypingBroadcasted && state.channel && state.room) {
       isTypingBroadcasted = false;
       try {
         state.channel.send({
           type: 'broadcast',
           event: 'stop_typing',
-          payload: { user_id: state.user.id }
+          payload: { user_id: state.user ? state.user.id : null, name: state.name, clientId: state.clientId }
         });
       } catch (e) {}
     }
@@ -2240,13 +2260,19 @@
       catchUp();
     })
     .on('broadcast', { event: 'typing' }, function (payload) {
-      if (payload && payload.payload && payload.payload.user_id !== (state.user && state.user.id)) {
-        handlePeerTyping(payload.payload.user_id, payload.payload.name);
+      if (payload && payload.payload) {
+        var p = payload.payload;
+        var isSelf = (p.clientId && p.clientId === state.clientId) ||
+                     (!p.clientId && p.name && state.name && p.name.trim().toLowerCase() === state.name.trim().toLowerCase());
+        if (!isSelf) {
+          handlePeerTyping(p.clientId || p.user_id || p.name, p.name);
+        }
       }
     })
     .on('broadcast', { event: 'stop_typing' }, function (payload) {
       if (payload && payload.payload) {
-        handlePeerStopTyping(payload.payload.user_id);
+        var p = payload.payload;
+        handlePeerStopTyping(p.clientId || p.user_id || p.name);
       }
     })
     .on('broadcast', { event: 'read_ack' }, function (payload) {
@@ -2280,13 +2306,18 @@
     .on('broadcast', { event: 'msg_react' }, function (payload) {
       if (payload && payload.payload) {
         var p = payload.payload;
+        if (!p.msgId || !p.emoji) return;
         if (!activeReactions[p.msgId]) activeReactions[p.msgId] = {};
         if (!activeReactions[p.msgId][p.emoji]) activeReactions[p.msgId][p.emoji] = [];
         var users = activeReactions[p.msgId][p.emoji];
-        if (users.indexOf(p.userId) === -1) {
-          users.push(p.userId);
-          render('keep');
+        var actorKey = p.userName || p.userId || 'peer';
+        var idx = users.indexOf(actorKey);
+        if (idx === -1) {
+          users.push(actorKey);
+        } else {
+          users.splice(idx, 1);
         }
+        render('keep');
       }
     })
     // 2. Database postgres_changes fallback (filtered in JavaScript to avoid walrus filter bugs)
