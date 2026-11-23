@@ -3040,3 +3040,53 @@ button:active, .room-btn-apple:active, .segment-tab:active {
     background: var(--apple-surface-solid) !important;
   }
 }
+
+/* ---------- Feeling (sender-confirmed mood) ---------- */
+.feel-bar {
+  position: relative;
+  display: flex;
+  justify-content: flex-start;
+  padding: 0 14px 6px;
+}
+.feel-chip {
+  border: 0;
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 13px;
+  background: rgba(120, 120, 128, 0.14);
+  color: inherit;
+}
+.feel-menu {
+  position: absolute;
+  bottom: calc(100% + 4px);
+  left: 14px;
+  z-index: 20;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(120px, 1fr));
+  gap: 4px;
+  padding: 8px;
+  max-height: 50vh;
+  overflow-y: auto;
+  border-radius: 14px;
+  background: rgba(245, 245, 247, 0.98);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+}
+@media (prefers-color-scheme: dark) {
+  .feel-menu { background: rgba(44, 44, 46, 0.98); }
+}
+.feel-option {
+  border: 0;
+  border-radius: 10px;
+  padding: 8px 10px;
+  text-align: left;
+  background: transparent;
+  color: inherit;
+  font-size: 14px;
+}
+.feel-option:hover, .feel-option.selected { background: rgba(120, 120, 128, 0.18); }
+.feel-tag {
+  font-size: 12px;
+  font-weight: 600;
+  opacity: 0.75;
+  margin-bottom: 2px;
+}
