@@ -61,6 +61,20 @@
     callHistoryFilterMissed: $('call-history-filter-missed'),
     callHistoryClearBtn: $('call-history-clear-btn'),
     callHistoryCloseBtn: $('call-history-close-btn'),
+    // In-Chat Search & Export
+    searchBtn: $('search-btn'),
+    searchBarWrap: $('search-bar-wrap'),
+    searchInput: $('search-input'),
+    searchCount: $('search-count'),
+    searchPrevBtn: $('search-prev-btn'),
+    searchNextBtn: $('search-next-btn'),
+    searchCloseBtn: $('search-close-btn'),
+    menuSearchBtn: $('menu-search-btn'),
+    exportBtn: $('export-btn'),
+    menuExportBtn: $('menu-export-btn'),
+    exportModal: $('export-modal'),
+    exportConfirmBtn: $('export-confirm-btn'),
+    exportCancelBtn: $('export-cancel-btn'),
     callIncomingBanner: $('call-incoming-banner'),
     callIncomingAvatar: $('call-incoming-avatar'),
     callIncomingCaller: $('call-incoming-caller'),
@@ -887,6 +901,312 @@
       item.append(iconWrap, info, actionWrap);
       ui.callHistoryList.append(item);
     });
+  }
+
+  // =========================================================================
+  // Apple Glass Spotlight In-Chat Message Search
+  // =========================================================================
+  var searchMatches = [];
+  var searchMatchIndex = -1;
+  var searchDebounceTimer = null;
+
+  function openSearchBar() {
+    if (!ui.searchBarWrap) return;
+    ui.searchBarWrap.hidden = false;
+    if (ui.searchInput) {
+      ui.searchInput.focus();
+      ui.searchInput.select();
+      if (ui.searchInput.value.trim()) {
+        performSearch(ui.searchInput.value.trim());
+      }
+    }
+  }
+
+  function closeSearchBar() {
+    if (!ui.searchBarWrap) return;
+    ui.searchBarWrap.hidden = true;
+    clearSearchHighlights();
+  }
+
+  function clearSearchHighlights() {
+    if (ui.searchCount) ui.searchCount.hidden = true;
+    if (ui.searchPrevBtn) ui.searchPrevBtn.disabled = true;
+    if (ui.searchNextBtn) ui.searchNextBtn.disabled = true;
+    searchMatches = [];
+    searchMatchIndex = -1;
+
+    var allRows = document.querySelectorAll('.msg');
+    allRows.forEach(function (row) {
+      row.classList.remove('search-matched', 'search-active-target', 'search-dimmed');
+      var marks = row.querySelectorAll('mark.search-highlight');
+      marks.forEach(function (m) {
+        var parent = m.parentNode;
+        parent.replaceChild(document.createTextNode(m.textContent), m);
+        parent.normalize();
+      });
+    });
+  }
+
+  function highlightTextNodes(node, query) {
+    var text = node.textContent;
+    var lower = text.toLowerCase();
+    var idx = lower.indexOf(query);
+    if (idx === -1) return;
+
+    var frag = document.createDocumentFragment();
+    var lastIdx = 0;
+
+    while (idx !== -1) {
+      if (idx > lastIdx) {
+        frag.appendChild(document.createTextNode(text.substring(lastIdx, idx)));
+      }
+      var mark = document.createElement('mark');
+      mark.className = 'search-highlight';
+      mark.textContent = text.substring(idx, idx + query.length);
+      frag.appendChild(mark);
+
+      lastIdx = idx + query.length;
+      idx = lower.indexOf(query, lastIdx);
+    }
+
+    if (lastIdx < text.length) {
+      frag.appendChild(document.createTextNode(text.substring(lastIdx)));
+    }
+
+    node.innerHTML = '';
+    node.appendChild(frag);
+  }
+
+  function updateSearchTarget() {
+    if (!searchMatches.length) return;
+    searchMatches.forEach(function (r) { r.classList.remove('search-active-target'); });
+
+    var target = searchMatches[searchMatchIndex];
+    if (target) {
+      target.classList.add('search-active-target');
+      target.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+
+    if (ui.searchCount) {
+      ui.searchCount.textContent = (searchMatchIndex + 1) + ' of ' + searchMatches.length;
+      ui.searchCount.hidden = false;
+    }
+    if (ui.searchPrevBtn) ui.searchPrevBtn.disabled = searchMatches.length <= 1;
+    if (ui.searchNextBtn) ui.searchNextBtn.disabled = searchMatches.length <= 1;
+  }
+
+  function nextSearchMatch() {
+    if (!searchMatches.length) return;
+    searchMatchIndex = (searchMatchIndex + 1) % searchMatches.length;
+    updateSearchTarget();
+  }
+
+  function prevSearchMatch() {
+    if (!searchMatches.length) return;
+    searchMatchIndex = (searchMatchIndex - 1 + searchMatches.length) % searchMatches.length;
+    updateSearchTarget();
+  }
+
+  function performSearch(query) {
+    clearSearchHighlights();
+    query = (query || '').trim().toLowerCase();
+    if (!query) return;
+
+    var allRows = Array.from(document.querySelectorAll('.msg'));
+    if (!allRows.length) return;
+
+    var matchedRows = [];
+
+    allRows.forEach(function (row) {
+      var textEl = row.querySelector('.text');
+      var authorEl = row.querySelector('.author');
+      var contentText = (textEl ? textEl.textContent : '') + ' ' + (authorEl ? authorEl.textContent : '');
+      var lowerContent = contentText.toLowerCase();
+
+      if (lowerContent.indexOf(query) !== -1) {
+        row.classList.add('search-matched');
+        matchedRows.push(row);
+        if (textEl) {
+          highlightTextNodes(textEl, query);
+        }
+      } else {
+        row.classList.add('search-dimmed');
+      }
+    });
+
+    searchMatches = matchedRows;
+    if (searchMatches.length > 0) {
+      searchMatchIndex = 0;
+      updateSearchTarget();
+    } else {
+      if (ui.searchCount) {
+        ui.searchCount.textContent = '0 matches';
+        ui.searchCount.hidden = false;
+      }
+    }
+  }
+
+  // =========================================================================
+  // Apple Glass Chat Export & Backup Controller
+  // =========================================================================
+  function downloadBlob(blob, filename) {
+    var url = URL.createObjectURL(blob);
+    var a = document.createElement('a');
+    a.href = url;
+    a.download = filename;
+    document.body.appendChild(a);
+    a.click();
+    setTimeout(function () {
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+    }, 1500);
+  }
+
+  function buildHtmlArchive(roomTitle, messagesList) {
+    var dateExported = new Date().toLocaleString();
+    var rowsHtml = messagesList.map(function (m) {
+      var isMe = state.user && m.user_id === state.user.id;
+      var timeStr = new Date(m.ts).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
+      var clean = m.content || '';
+      var body = '';
+
+      if (clean.indexOf('[call:debrief:') !== -1) {
+        try {
+          var match = clean.match(/\[call:debrief:(.*)\]/);
+          if (match) {
+            var d = JSON.parse(decodeURIComponent(match[1]));
+            body = '<div class="call-badge">📞 ' + (d.type === 'missed' ? 'Missed Call' : 'Voice Call') + ' (' + escapeHtml(d.duration || '') + ')</div>';
+          }
+        } catch (e) { body = escapeHtml(clean); }
+      } else if (clean.startsWith('[audio:')) {
+        body = '<div class="audio-badge">🎤 Voice Note</div>';
+      } else if (clean.startsWith('[capsule:')) {
+        body = '<div class="capsule-badge">⏳📍 Cryptographic Capsule</div>';
+      } else {
+        body = '<div class="text">' + escapeHtml(clean) + '</div>';
+      }
+
+      return '<div class="msg-row ' + (isMe ? 'mine' : 'theirs') + '">' +
+        '<div class="bubble">' +
+          '<div class="author">' + escapeHtml(m.display_name || 'Anonymous') + '</div>' +
+          body +
+          '<div class="time">' + escapeHtml(timeStr) + '</div>' +
+        '</div>' +
+      '</div>';
+    }).join('\n');
+
+    return '<!DOCTYPE html>\n<html lang="en">\n<head>\n' +
+      '<meta charset="utf-8" />\n' +
+      '<meta name="viewport" content="width=device-width, initial-scale=1" />\n' +
+      '<title>LinkChat Archive — ' + escapeHtml(roomTitle) + '</title>\n' +
+      '<style>\n' +
+      'body { font-family: -apple-system, BlinkMacSystemFont, "SF Pro Text", "Segoe UI", Roboto, Helvetica, sans-serif; background: #f2f2f7; color: #1c1c1e; margin: 0; padding: 20px 12px; }\n' +
+      '@media (prefers-color-scheme: dark) { body { background: #000; color: #f2f2f7; } .bubble { background: #2c2c2e !important; color: #fff !important; } .mine .bubble { background: #007aff !important; color: #fff !important; } }\n' +
+      '.container { max-width: 640px; margin: 0 auto; }\n' +
+      '.header { text-align: center; margin-bottom: 24px; padding-bottom: 16px; border-bottom: 1px solid rgba(120,120,128,0.2); }\n' +
+      '.header h1 { margin: 0 0 4px; font-size: 22px; }\n' +
+      '.header p { margin: 0; font-size: 13px; opacity: 0.65; }\n' +
+      '.msg-row { display: flex; margin-bottom: 10px; }\n' +
+      '.msg-row.mine { justify-content: flex-end; }\n' +
+      '.msg-row.theirs { justify-content: flex-start; }\n' +
+      '.bubble { max-width: 78%; padding: 10px 14px; border-radius: 18px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }\n' +
+      '.mine .bubble { background: #007aff; color: #fff; border-bottom-right-radius: 4px; }\n' +
+      '.theirs .bubble { border-bottom-left-radius: 4px; }\n' +
+      '.author { font-size: 11px; font-weight: 700; margin-bottom: 3px; opacity: 0.8; }\n' +
+      '.mine .author { display: none; }\n' +
+      '.text { font-size: 14.5px; line-height: 1.4; word-break: break-word; white-space: pre-wrap; }\n' +
+      '.time { font-size: 10.5px; opacity: 0.6; text-align: right; margin-top: 4px; }\n' +
+      '.call-badge, .audio-badge, .capsule-badge { font-size: 12.5px; font-weight: 600; padding: 4px 8px; border-radius: 8px; background: rgba(120,120,128,0.15); }\n' +
+      '@media print { body { background: #fff; color: #000; } .header { border-bottom: 2px solid #000; } }\n' +
+      '</style>\n</head>\n<body>\n' +
+      '<div class="container">\n' +
+      '<div class="header">\n' +
+      '  <h1>💬 ' + escapeHtml(roomTitle) + '</h1>\n' +
+      '  <p>Exported from LinkChat on ' + escapeHtml(dateExported) + ' • ' + messagesList.length + ' messages</p>\n' +
+      '</div>\n' +
+      '<div class="feed">\n' +
+      rowsHtml + '\n' +
+      '</div>\n' +
+      '</div>\n</body>\n</html>';
+  }
+
+  function generateChatExport(format) {
+    var messagesList = sorted();
+    var roomTitle = state.roomDisplayName || state.room || 'General';
+    var dateStr = new Date().toISOString().slice(0, 10);
+    var filename = 'linkchat_' + (state.room || 'chat') + '_' + dateStr;
+
+    if (format === 'json') {
+      var exportData = {
+        exportedAt: new Date().toISOString(),
+        room: state.room,
+        roomName: roomTitle,
+        totalMessages: messagesList.length,
+        messages: messagesList.map(function (m) {
+          return {
+            id: m.id,
+            sender: m.display_name,
+            timestamp: m.ts,
+            date: new Date(m.ts).toISOString(),
+            content: m.content,
+            image_path: m.image_path || null
+          };
+        })
+      };
+      downloadBlob(new Blob([JSON.stringify(exportData, null, 2)], { type: 'application/json' }), filename + '.json');
+      toast('Exported JSON data backup 📁');
+      return;
+    }
+
+    if (format === 'txt') {
+      var txtLines = [
+        '========================================',
+        'LinkChat Transcript: ' + roomTitle,
+        'Exported on: ' + new Date().toLocaleString(),
+        'Messages: ' + messagesList.length,
+        '========================================\n'
+      ];
+
+      messagesList.forEach(function (m) {
+        var time = new Date(m.ts).toLocaleString();
+        var cleanContent = m.content || (m.image_path ? '[Photo Attachment]' : '');
+        cleanContent = cleanContent.replace(/^\[audio:(\d+):([^\]]+)\]/, '🎤 [Voice Note: $1s]');
+        cleanContent = cleanContent.replace(/^\[capsule:([^\]]+)\]/, '⏳📍 [Cryptographic Capsule]');
+        if (cleanContent.indexOf('[call:debrief:') !== -1) {
+          try {
+            var match = cleanContent.match(/\[call:debrief:(.*)\]/);
+            if (match) {
+              var d = JSON.parse(decodeURIComponent(match[1]));
+              cleanContent = '📞 [Call: ' + (d.type || 'completed') + ' (' + (d.duration || '') + ')]';
+            }
+          } catch (e) {}
+        }
+        txtLines.push('[' + time + '] ' + m.display_name + ': ' + cleanContent);
+      });
+
+      downloadBlob(new Blob([txtLines.join('\n')], { type: 'text/plain;charset=utf-8' }), filename + '.txt');
+      toast('Exported text transcript 📄');
+      return;
+    }
+
+    var htmlContent = buildHtmlArchive(roomTitle, messagesList);
+    downloadBlob(new Blob([htmlContent], { type: 'text/html;charset=utf-8' }), filename + '.html');
+    toast('Exported HTML archive 🌟');
+  }
+
+  function openExportModal() {
+    if (ui.exportModal) ui.exportModal.hidden = false;
+  }
+
+  function closeExportModal() {
+    if (ui.exportModal) ui.exportModal.hidden = true;
+  }
+
+  function handleExportConfirm() {
+    var selectedRadio = document.querySelector('input[name="export-format"]:checked');
+    var format = selectedRadio ? selectedRadio.value : 'html';
+    closeExportModal();
+    generateChatExport(format);
   }
 
   // =========================================================================
@@ -4697,6 +5017,78 @@
     ui.menuLeaveBtn.addEventListener('click', function () {
       closeHeaderMenu();
       if (ui.leaveBtn) ui.leaveBtn.click();
+    });
+  }
+
+  // ---------- In-Chat Search & Export Event Listeners ----------
+  if (ui.searchBtn) {
+    ui.searchBtn.addEventListener('click', openSearchBar);
+  }
+  if (ui.menuSearchBtn) {
+    ui.menuSearchBtn.addEventListener('click', function () {
+      closeHeaderMenu();
+      openSearchBar();
+    });
+  }
+  if (ui.searchCloseBtn) {
+    ui.searchCloseBtn.addEventListener('click', closeSearchBar);
+  }
+  if (ui.searchNextBtn) {
+    ui.searchNextBtn.addEventListener('click', nextSearchMatch);
+  }
+  if (ui.searchPrevBtn) {
+    ui.searchPrevBtn.addEventListener('click', prevSearchMatch);
+  }
+  if (ui.searchInput) {
+    ui.searchInput.addEventListener('input', function () {
+      clearTimeout(searchDebounceTimer);
+      searchDebounceTimer = setTimeout(function () {
+        performSearch(ui.searchInput.value);
+      }, 150);
+    });
+    ui.searchInput.addEventListener('keydown', function (e) {
+      if (e.key === 'Enter') {
+        e.preventDefault();
+        if (e.shiftKey) {
+          prevSearchMatch();
+        } else {
+          nextSearchMatch();
+        }
+      } else if (e.key === 'Escape') {
+        e.preventDefault();
+        closeSearchBar();
+      }
+    });
+  }
+
+  // Global Shortcut: Ctrl+F / Cmd+F opens in-chat search
+  document.addEventListener('keydown', function (e) {
+    if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'f' && ui.chat && !ui.chat.hidden) {
+      e.preventDefault();
+      openSearchBar();
+    } else if (e.key === 'Escape' && ui.searchBarWrap && !ui.searchBarWrap.hidden) {
+      closeSearchBar();
+    }
+  });
+
+  if (ui.exportBtn) {
+    ui.exportBtn.addEventListener('click', openExportModal);
+  }
+  if (ui.menuExportBtn) {
+    ui.menuExportBtn.addEventListener('click', function () {
+      closeHeaderMenu();
+      openExportModal();
+    });
+  }
+  if (ui.exportCancelBtn) {
+    ui.exportCancelBtn.addEventListener('click', closeExportModal);
+  }
+  if (ui.exportConfirmBtn) {
+    ui.exportConfirmBtn.addEventListener('click', handleExportConfirm);
+  }
+  if (ui.exportModal) {
+    ui.exportModal.addEventListener('click', function (e) {
+      if (e.target === ui.exportModal) closeExportModal();
     });
   }
 
