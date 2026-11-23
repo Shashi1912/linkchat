@@ -9,7 +9,6 @@ var STATIC_ASSETS = [
   './app.js',
   './mesh.js',
   './games.js',
-  './ai.js',
   './config.js',
   './manifest.json',
   './qr.min.js',
