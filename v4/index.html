@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="LinkChat" />
-  <link rel="stylesheet" href="style.css?v=4.0" />
+  <link rel="stylesheet" href="style.css?v=4.4" />
   <script>
     // Apply saved theme before paint (prevents dark/light flash)
     try {
@@ -465,6 +465,14 @@
           </svg>
         </button>
 
+        <!-- Call Logs / Recents Button -->
+        <button id="call-history-btn" class="apple-icon-btn" type="button" title="Call Logs & Recents" aria-label="Call Logs & Recents">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <polyline points="12 6 12 12 16 14"></polyline>
+          </svg>
+        </button>
+
         <!-- Notification Toggle Button -->
         <button id="notif-btn" class="apple-icon-btn" type="button" title="Enable notifications" aria-label="Toggle notifications">
           <svg id="notif-icon" viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -573,6 +581,13 @@
       <!-- Apple Glass Action Sheet Popover Menu for Mobile -->
       <div id="header-more-menu" class="apple-header-menu" hidden role="menu" aria-label="More options">
         <div class="header-menu-card">
+          <button id="menu-call-history-btn" class="menu-item" type="button" role="menuitem">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+            <span>Call Recents & Logs</span>
+          </button>
           <button id="menu-capsule-btn" class="menu-item" type="button" role="menuitem">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="10"></circle>
@@ -1074,6 +1089,36 @@
     </div>
   </div>
 
+  <!-- Apple Call Logs & Recents Modal -->
+  <div id="call-history-modal" class="apple-modal-scrim" hidden>
+    <div class="apple-modal-card call-history-card" role="dialog" aria-modal="true" aria-labelledby="call-history-title">
+      <div class="call-history-header">
+        <div class="call-history-title-row">
+          <div class="call-history-icon-badge">
+            <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>
+            </svg>
+          </div>
+          <div class="call-history-title-text">
+            <h3 id="call-history-title">Call Recents</h3>
+            <p class="apple-modal-desc">History of voice &amp; video calls</p>
+          </div>
+        </div>
+        <div class="call-history-segmented" role="tablist">
+          <button id="call-history-filter-all" type="button" class="history-tab-btn active" role="tab" aria-selected="true">All</button>
+          <button id="call-history-filter-missed" type="button" class="history-tab-btn" role="tab" aria-selected="false">Missed</button>
+        </div>
+      </div>
+
+      <div id="call-history-list" class="call-history-list"></div>
+
+      <div class="call-history-footer">
+        <button id="call-history-clear-btn" type="button" class="btn-apple-cancel text-danger">Clear Recents</button>
+        <button id="call-history-close-btn" type="button" class="btn-apple-cancel">Close</button>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
   <script src="config.js"></script>
   <script src="qr.min.js"></script>
@@ -1081,6 +1126,6 @@
   <script src="games.js"></script>
   <script src="feelings.js?v=2"></script>
   <script src="capsules.js"></script>
-  <script src="app.js?v=4.3"></script>
+  <script src="app.js?v=4.4"></script>
 </body>
 </html>
