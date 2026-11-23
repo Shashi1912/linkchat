@@ -12,7 +12,7 @@
   <meta name="apple-mobile-web-app-capable" content="yes" />
   <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
   <meta name="apple-mobile-web-app-title" content="LinkChat" />
-  <link rel="stylesheet" href="style.css?v=3.8" />
+  <link rel="stylesheet" href="style.css?v=4.0" />
   <script>
     // Apply saved theme before paint (prevents dark/light flash)
     try {
@@ -468,6 +468,84 @@
             <line x1="21" y1="12" x2="9" y2="12"/>
           </svg>
         </button>
+
+        <!-- More Actions Button (Mobile & Responsive) -->
+        <button id="header-more-btn" class="apple-icon-btn" type="button" title="More options" aria-label="More options" aria-haspopup="menu" aria-expanded="false">
+          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="1.5"></circle>
+            <circle cx="19" cy="12" r="1.5"></circle>
+            <circle cx="5" cy="12" r="1.5"></circle>
+          </svg>
+        </button>
+      </div>
+
+      <!-- Apple Glass Action Sheet Popover Menu for Mobile -->
+      <div id="header-more-menu" class="apple-header-menu" hidden role="menu" aria-label="More options">
+        <div class="header-menu-card">
+          <button id="menu-copy-btn" class="menu-item" type="button" role="menuitem">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="18" cy="5" r="3"></circle>
+              <circle cx="6" cy="12" r="3"></circle>
+              <circle cx="18" cy="19" r="3"></circle>
+              <line x1="8.59" y1="13.51" x2="15.42" y2="17.49"></line>
+              <line x1="15.41" y1="6.51" x2="8.59" y2="10.49"></line>
+            </svg>
+            <span>Share Invite Link</span>
+          </button>
+          <button id="menu-qr-btn" class="menu-item" type="button" role="menuitem">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="3" width="7" height="7"></rect>
+              <rect x="14" y="3" width="7" height="7"></rect>
+              <rect x="14" y="14" width="7" height="7"></rect>
+              <rect x="3" y="14" width="7" height="7"></rect>
+            </svg>
+            <span>QR Code</span>
+          </button>
+          <button id="menu-notif-btn" class="menu-item" type="button" role="menuitem">
+            <svg id="menu-notif-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M18 8A6 6 0 0 0 6 8c0 7-3 9-3 9h18s-3-2-3-9"></path>
+              <path d="M13.73 21a2 2 0 0 1-3.46 0"></path>
+            </svg>
+            <span id="menu-notif-label">Notifications</span>
+          </button>
+          <button id="menu-theme-btn" class="menu-item" type="button" role="menuitem">
+            <svg id="menu-theme-icon" viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"></path>
+            </svg>
+            <span id="menu-theme-label">Appearance</span>
+          </button>
+          <button id="menu-clear-btn" class="menu-item" type="button" role="menuitem">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+              <line x1="10" y1="11" x2="10" y2="17"></line>
+              <line x1="14" y1="11" x2="14" y2="17"></line>
+            </svg>
+            <span>Clear Chat</span>
+          </button>
+          <button id="menu-panic-btn" class="menu-item danger" type="button" role="menuitem">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="3" y="11" width="18" height="11" rx="2" ry="2"></rect>
+              <path d="M7 11V7a5 5 0 0 1 10 0v4"></path>
+            </svg>
+            <span>Quick Lock Chat</span>
+          </button>
+          <button id="menu-delete-room-btn" class="menu-item danger" type="button" role="menuitem" hidden>
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polyline points="3 6 5 6 21 6"></polyline>
+              <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+            </svg>
+            <span>Delete Room</span>
+          </button>
+          <button id="menu-leave-btn" class="menu-item danger" type="button" role="menuitem">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/>
+              <polyline points="16 17 21 12 16 7"/>
+              <line x1="21" y1="12" x2="9" y2="12"/>
+            </svg>
+            <span>Leave Room</span>
+          </button>
+        </div>
       </div>
     </header>
 
@@ -503,23 +581,14 @@
       </div>
 
       <form id="composer" class="composer-apple" novalidate>
-        <button id="attach-btn" class="apple-icon-btn composer-icon" type="button" title="Attach photo" aria-label="Attach photo">
-          <svg viewBox="0 0 24 24" width="22" height="22" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M23 19a2 2 0 0 1-2 2H3a2 2 0 0 1-2-2V8a2 2 0 0 1 2-2h4l2-3h6l2 3h4a2 2 0 0 1 2 2z"/>
-            <circle cx="12" cy="13" r="4"/>
+        <!-- Apple Attachment (+) Button -->
+        <button id="attach-btn" class="apple-attach-btn" type="button" title="Attach photo" aria-label="Attach photo">
+          <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
+            <line x1="12" y1="5" x2="12" y2="19"></line>
+            <line x1="5" y1="12" x2="19" y2="12"></line>
           </svg>
         </button>
         <input id="file-input" type="file" accept="image/*" hidden />
-
-        <!-- Voice Record Button -->
-        <button id="voice-record-btn" class="apple-icon-btn composer-icon voice-record-btn" type="button" title="Record voice message" aria-label="Record voice note">
-          <svg id="voice-record-icon" viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
-            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
-            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
-            <line x1="12" y1="19" x2="12" y2="23"></line>
-            <line x1="8" y1="23" x2="16" y2="23"></line>
-          </svg>
-        </button>
 
         <!-- Voice Recording Active Bar -->
         <div id="voice-recording-bar" class="voice-recording-bar" hidden>
@@ -541,14 +610,25 @@
           </button>
         </div>
 
+        <!-- Unified Apple Text Input Capsule -->
         <div id="msg-input-wrap" class="input-wrapper">
           <textarea id="msg-input" rows="1" maxlength="1000" placeholder="iMessage"
                     aria-label="Message" enterkeyhint="send"></textarea>
           <span id="counter" class="counter" hidden></span>
         </div>
 
-        <button id="send-btn" class="apple-send-btn" type="submit" aria-label="Send" disabled>
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
+        <!-- Dynamic Action Button: Voice Record (when empty) vs Apple Send (when text typed) -->
+        <button id="voice-record-btn" class="apple-circle-action-btn voice-dynamic-btn" type="button" title="Record voice message" aria-label="Record voice note">
+          <svg id="voice-record-icon" viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M12 1a3 3 0 0 0-3 3v8a3 3 0 0 0 6 0V4a3 3 0 0 0-3-3z"></path>
+            <path d="M19 10v2a7 7 0 0 1-14 0v-2"></path>
+            <line x1="12" y1="19" x2="12" y2="23"></line>
+            <line x1="8" y1="23" x2="16" y2="23"></line>
+          </svg>
+        </button>
+
+        <button id="send-btn" class="apple-send-btn send-dynamic-btn" type="submit" aria-label="Send" hidden disabled>
+          <svg viewBox="0 0 24 24" width="17" height="17" fill="none" stroke="currentColor" stroke-width="2.6" stroke-linecap="round" stroke-linejoin="round">
             <line x1="12" y1="19" x2="12" y2="5"></line>
             <polyline points="5 12 12 5 19 12"></polyline>
           </svg>

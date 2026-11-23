@@ -1377,13 +1377,108 @@ button:active, .room-btn-apple:active, .segment-tab:active {
     font-size: 14.5px !important;
     padding: 0 14px !important;
   }
+
+  /* Mobile Header Optimization: eliminate call button / chat logo overlap */
+  .chat-header {
+    padding: 8px 12px;
+    padding-top: max(8px, env(safe-area-inset-top));
+    gap: 8px;
+    position: relative;
+  }
+  .header-leading {
+    min-width: 0;
+    flex: 1 1 auto;
+    gap: 8px;
+  }
+  .room-avatar {
+    width: 34px;
+    height: 34px;
+    border-radius: 10px;
+    flex-shrink: 0;
+  }
+  .room-info {
+    min-width: 0;
+    flex: 1;
+  }
+  .room-title-row {
+    min-width: 0;
+    overflow: hidden;
+  }
+  .room-name {
+    font-size: 15px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .room-subline {
+    font-size: 11px;
+    gap: 6px;
+  }
+  .header-actions {
+    flex-shrink: 0;
+    gap: 4px;
+  }
+  .header-actions .apple-icon-btn {
+    width: 34px;
+    height: 34px;
+    border-radius: 9px;
+  }
+  /* On mobile: keep Call button, Rooms switcher, and More (...) button visible;
+     secondary buttons move into Apple Action Menu to prevent header overcrowding */
+  #header-more-btn {
+    display: grid !important;
+  }
+  #call-btn {
+    display: grid !important;
+  }
+  #notif-btn,
+  #clear-btn,
+  #delete-current-room-btn,
+  #copy-btn,
+  #qr-btn,
+  #theme-btn,
+  #panic-btn,
+  #leave-btn {
+    display: none !important;
+  }
+
+  /* Mobile Composer & Voice Bar */
+  .composer-container {
+    padding: 6px 10px;
+    padding-bottom: max(6px, env(safe-area-inset-bottom));
+  }
+  .composer-apple {
+    gap: 8px;
+    align-items: center;
+  }
+  .apple-attach-btn,
+  .apple-circle-action-btn,
+  .apple-send-btn {
+    width: 34px !important;
+    height: 34px !important;
+    min-width: 34px !important;
+  }
+  .composer-apple textarea {
+    padding: 8px 14px !important;
+    font-size: 16px !important; /* Prevents auto-zoom on iOS */
+  }
+  .btn-voice-send,
+  .btn-voice-cancel {
+    width: 32px;
+    height: 32px;
+  }
+  .voice-recording-bar {
+    gap: 8px;
+    padding: 2px 4px;
+  }
 }
 
 /* ---------- Chat Layout & Floating Chrome ---------- */
 .chat {
   position: relative;
   height: 100%;
-  max-height: 100%;
+  height: 100dvh;
+  max-height: 100dvh;
   display: flex;
   flex-direction: column;
   max-width: 920px;
@@ -1549,6 +1644,75 @@ button:active, .room-btn-apple:active, .segment-tab:active {
 .status-dot.muted {
   opacity: 1;
   background: var(--apple-tertiary-label);
+}
+
+/* More button hidden on desktop by default */
+#header-more-btn {
+  display: none;
+}
+
+/* ---------- Apple Glass Popover Action Menu ---------- */
+.apple-header-menu {
+  position: absolute;
+  top: calc(100% + 6px);
+  right: 12px;
+  z-index: 100;
+  display: block;
+}
+.apple-header-menu[hidden] {
+  display: none !important;
+}
+.header-menu-card {
+  display: flex;
+  flex-direction: column;
+  min-width: 210px;
+  background: var(--apple-surface);
+  backdrop-filter: var(--apple-blur);
+  -webkit-backdrop-filter: var(--apple-blur);
+  border: 1px solid var(--apple-border);
+  border-radius: 16px;
+  box-shadow: 0 12px 36px rgba(0, 0, 0, 0.22);
+  padding: 6px;
+  gap: 2px;
+  animation: appleMenuAppear 0.22s var(--apple-spring-bounce) forwards;
+  transform-origin: top right;
+}
+@keyframes appleMenuAppear {
+  from { opacity: 0; transform: scale(0.92) translateY(-6px); }
+  to { opacity: 1; transform: scale(1) translateY(0); }
+}
+.header-menu-card .menu-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 10px;
+  border: none;
+  background: transparent;
+  color: var(--apple-label);
+  font-size: 13.5px;
+  font-weight: 500;
+  text-align: left;
+  cursor: pointer;
+  transition: background-color 0.12s, transform 0.1s;
+  width: 100%;
+}
+.header-menu-card .menu-item:hover {
+  background: var(--apple-secondary-surface);
+}
+.header-menu-card .menu-item:active {
+  transform: scale(0.98);
+  background: var(--apple-secondary-surface);
+}
+.header-menu-card .menu-item.danger {
+  color: var(--apple-red);
+}
+.header-menu-card .menu-item svg {
+  flex-shrink: 0;
+  opacity: 0.85;
+}
+.header-menu-card .menu-item.danger svg {
+  color: var(--apple-red);
 }
 
 .online-list {
@@ -1864,6 +2028,52 @@ button:active, .room-btn-apple:active, .segment-tab:active {
 }
 .counter.over {
   color: var(--apple-red);
+}
+
+/* Apple iMessage Round Attachment Button (+) */
+.apple-attach-btn {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  border-radius: 50%;
+  border: none;
+  background: var(--apple-secondary-surface);
+  color: var(--apple-secondary-label);
+  display: grid;
+  place-items: center;
+  flex: none;
+  cursor: pointer;
+  transition: transform 0.15s var(--apple-spring), background-color 0.15s, color 0.15s;
+}
+.apple-attach-btn:hover {
+  background: var(--apple-separator);
+  color: var(--apple-label);
+}
+.apple-attach-btn:active {
+  transform: scale(0.9);
+}
+
+/* Apple iMessage Round Voice Action Button */
+.apple-circle-action-btn {
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  border-radius: 50%;
+  border: none;
+  background: var(--apple-secondary-surface);
+  color: var(--apple-secondary-label);
+  display: grid;
+  place-items: center;
+  flex: none;
+  cursor: pointer;
+  transition: transform 0.15s var(--apple-spring), background-color 0.15s, color 0.15s;
+}
+.apple-circle-action-btn:hover {
+  background: rgba(0, 122, 255, 0.12);
+  color: var(--apple-blue);
+}
+.apple-circle-action-btn:active {
+  transform: scale(0.9);
 }
 
 /* Apple iMessage Round Send Button */
