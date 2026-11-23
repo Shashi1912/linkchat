@@ -1423,25 +1423,14 @@ button:active, .room-btn-apple:active, .segment-tab:active {
     height: 34px;
     border-radius: 9px;
   }
-  /* On mobile: keep Call button, Rooms switcher, and More (...) button visible;
+  /* Apple Pro Clean Header (Mobile): keep Call button and More (...) button visible;
      secondary buttons move into Apple Action Menu to prevent header overcrowding */
-  #header-more-btn {
-    display: grid !important;
-  }
-  #call-btn {
-    display: grid !important;
-  }
-  #notif-btn,
-  #clear-btn,
-  #delete-current-room-btn,
-  #copy-btn,
-  #qr-btn,
-  #mesh-btn,
-  #arena-btn,
-  #theme-btn,
-  #panic-btn,
-  #leave-btn {
+  .header-actions .apple-icon-btn {
     display: none !important;
+  }
+  .header-actions #call-btn,
+  .header-actions #header-more-btn {
+    display: grid !important;
   }
 
   /* Mobile Composer & Voice Bar */
@@ -1605,8 +1594,24 @@ button:active, .room-btn-apple:active, .segment-tab:active {
 .header-actions {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   flex: none;
+}
+
+/* Apple Pro Clean Header: Restrained, spacious, and uncluttered on both PC & Mobile.
+   Only Voice Call, Search (desktop), and Action Sheet (...) live on the header.
+   All secondary tools live inside the Apple Action Sheet. */
+.header-actions .apple-icon-btn {
+  display: none !important;
+}
+.header-actions #call-btn,
+.header-actions #header-more-btn {
+  display: grid !important;
+}
+@media (min-width: 820px) {
+  .header-actions #search-btn {
+    display: grid !important;
+  }
 }
 
 .apple-icon-btn {
@@ -5300,4 +5305,102 @@ mark.search-highlight {
 .btn-refog:hover {
   background: rgba(120, 120, 128, 0.12);
   color: var(--apple-label);
+}
+
+/* ==========================================================================
+   Apple Native Switch Toggle & Pro Action Sheet Menu Badges
+   ========================================================================== */
+.apple-toggle-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 12px;
+  background: rgba(120, 120, 128, 0.08);
+  border-radius: 14px;
+  margin: 10px 0;
+}
+.toggle-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  text-align: left;
+}
+.toggle-title {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--apple-label);
+}
+.toggle-desc {
+  font-size: 11px;
+  color: var(--apple-secondary-label);
+}
+.apple-switch {
+  position: relative;
+  display: inline-block;
+  width: 44px;
+  height: 26px;
+  flex-shrink: 0;
+}
+.apple-switch input {
+  opacity: 0;
+  width: 0;
+  height: 0;
+}
+.apple-switch .slider {
+  position: absolute;
+  cursor: pointer;
+  inset: 0;
+  background-color: rgba(120, 120, 128, 0.28);
+  transition: 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  border-radius: 999px;
+}
+.apple-switch .slider:before {
+  position: absolute;
+  content: "";
+  height: 22px;
+  width: 22px;
+  left: 2px;
+  bottom: 2px;
+  background-color: white;
+  transition: 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  border-radius: 50%;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.2);
+}
+.apple-switch input:checked + .slider {
+  background-color: #ff2d55;
+}
+.apple-switch input:checked + .slider:before {
+  transform: translateX(18px);
+}
+
+.menu-badge-pill {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(120, 120, 128, 0.16);
+  color: var(--apple-secondary-label);
+  margin-left: auto;
+}
+.menu-badge-pill.active {
+  background: rgba(255, 45, 85, 0.16);
+  color: #ff2d55;
+}
+.menu-item-text-col {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+  flex: 1;
+}
+.menu-item-text-col small {
+  font-size: 10px;
+  color: var(--apple-secondary-label);
+}
+.menu-section-header {
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: #ff2d55;
+  padding: 8px 14px 4px;
 }

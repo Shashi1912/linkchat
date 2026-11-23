@@ -240,6 +240,19 @@
               <label for="new-room-key">Access Key</label>
               <input id="new-room-key" type="password" maxlength="64" placeholder="Key required to enter" autocomplete="off" autocapitalize="off" autocorrect="off" spellcheck="false" />
             </div>
+
+            <!-- Couples Sanctuary Opt-In Toggle -->
+            <div class="apple-toggle-row">
+              <div class="toggle-text">
+                <span class="toggle-title">Couples Sanctuary Mode 💖</span>
+                <span class="toggle-desc">Enable Heart-Sync, Hold Hands, Compass & Love Suite</span>
+              </div>
+              <label class="apple-switch" title="Opt-in to couple features for this room">
+                <input id="new-room-couple-toggle" type="checkbox" />
+                <span class="slider"></span>
+              </label>
+            </div>
+
             <p id="create-room-error" class="form-error" role="alert"></p>
             <div class="subform-actions">
               <button id="create-room-btn" type="submit" class="btn-apple-primary btn-action-create">
@@ -459,7 +472,7 @@
               <span class="dot"></span><span id="online-count">0 online</span>
             </button>
             <span id="conn" class="conn" hidden>Connecting…</span>
-            <button id="mesh-pill" class="mesh-pill" type="button" title="Serverless Offline Mesh Network status" aria-label="Mesh network status">
+            <button id="mesh-pill" class="mesh-pill" type="button" title="Serverless Offline Mesh Network status" aria-label="Mesh network status" hidden>
               <span class="mesh-pulse-dot"></span>
               <span id="mesh-status-text">Mesh: Ready</span>
             </button>
@@ -638,26 +651,40 @@
             </svg>
             <span>NameDrop: Tap to Share Room</span>
           </button>
-          <!-- Lovers / Couples Suite -->
-          <button id="menu-couple-hands-btn" class="menu-item" type="button" role="menuitem">
-            <span class="menu-item-icon">💓</span>
-            <span>Hold Hands & Heart-Sync</span>
-          </button>
-          <button id="menu-couple-compass-btn" class="menu-item" type="button" role="menuitem">
-            <span class="menu-item-icon">🧭</span>
-            <span>Under the Same Sky (Compass)</span>
-          </button>
-          <button id="menu-couple-ambient-btn" class="menu-item" type="button" role="menuitem">
-            <span class="menu-item-icon">🎧</span>
-            <span>Listen Together (Ambient Sounds)</span>
-          </button>
-          <button id="menu-couple-milestones-btn" class="menu-item" type="button" role="menuitem">
-            <span class="menu-item-icon">🗓️</span>
-            <span>Our Milestones & Countdown</span>
-          </button>
-          <button id="menu-couple-foggy-btn" class="menu-item" type="button" role="menuitem">
-            <span class="menu-item-icon">🌫️</span>
-            <span>Send Secret Foggy Note</span>
+
+          <!-- Lovers / Couples Suite (Only for Opted-In Rooms) -->
+          <div id="couple-menu-section" class="couple-menu-section" hidden>
+            <div class="menu-section-header">Couples Sanctuary 💖</div>
+            <button id="menu-couple-hands-btn" class="menu-item" type="button" role="menuitem">
+              <span class="menu-item-icon">💓</span>
+              <span>Hold Hands & Heart-Sync</span>
+            </button>
+            <button id="menu-couple-compass-btn" class="menu-item" type="button" role="menuitem">
+              <span class="menu-item-icon">🧭</span>
+              <span>Under the Same Sky (Compass)</span>
+            </button>
+            <button id="menu-couple-ambient-btn" class="menu-item" type="button" role="menuitem">
+              <span class="menu-item-icon">🎧</span>
+              <span>Listen Together (Ambient Sounds)</span>
+            </button>
+            <button id="menu-couple-milestones-btn" class="menu-item" type="button" role="menuitem">
+              <span class="menu-item-icon">🗓️</span>
+              <span>Our Milestones & Countdown</span>
+            </button>
+            <button id="menu-couple-foggy-btn" class="menu-item" type="button" role="menuitem">
+              <span class="menu-item-icon">🌫️</span>
+              <span>Send Secret Foggy Note</span>
+            </button>
+          </div>
+
+          <!-- Room Couple Mode Toggle -->
+          <button id="menu-couple-toggle-btn" class="menu-item" type="button" role="menuitem">
+            <span class="menu-item-icon">💖</span>
+            <div class="menu-item-text-col">
+              <span>Couples Sanctuary</span>
+              <small>Opt-in heart-sync, compass & sounds</small>
+            </div>
+            <span id="menu-couple-toggle-status" class="menu-badge-pill">OFF</span>
           </button>
           <button id="menu-search-btn" class="menu-item" type="button" role="menuitem">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -847,8 +874,8 @@
             <line x1="5" y1="12" x2="19" y2="12"></line>
           </svg>
         </button>
-        <!-- Quick Thinking of You Heart Button -->
-        <button id="quick-love-btn" class="apple-love-btn" type="button" title="Send instant heart flutter (Thinking of You)" aria-label="Thinking of you">
+        <!-- Quick Thinking of You Heart Button (Only shown in opted-in Couple rooms) -->
+        <button id="quick-love-btn" class="apple-love-btn" type="button" title="Send instant heart flutter (Thinking of You)" aria-label="Thinking of you" hidden>
           <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
           </svg>

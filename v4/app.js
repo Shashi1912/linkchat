@@ -38,7 +38,9 @@
     roomJoinBtn: $('room-join-btn'),
     createRoomForm: $('create-room-form'), newRoomId: $('new-room-id'),
     newRoomName: $('new-room-name'), newRoomKey: $('new-room-key'),
+    newRoomCoupleToggle: $('new-room-couple-toggle'),
     createRoomError: $('create-room-error'), createRoomBtn: $('create-room-btn'),
+    menuCoupleToggleBtn: $('menu-couple-toggle-btn'),
     roomBackBtn: $('room-back-btn'),
     toggleJoinFormBtn: $('toggle-join-form-btn'),
     toggleCreateFormBtn: $('toggle-create-form-btn'),
@@ -4386,12 +4388,67 @@
         state.roomDisplayName = roomName;
         state.roomKey = key; // In-memory only!
         addLocalUserRoom({ id: roomId, name: roomName, created_at: new Date().toISOString() });
+        var isCoupleOpted = Boolean(ui.newRoomCoupleToggle && ui.newRoomCoupleToggle.checked);
+        if (isCoupleOpted) {
+          setCoupleRoom(roomId, true);
+        }
         if (ui.newRoomKey) ui.newRoomKey.value = '';
         enterChat();
       } catch (err) {
         ui.createRoomError.textContent = friendlyError(err);
         setBtnState(ui.createRoomBtn, false, 'Create & Join Room');
       }
+    });
+  }
+
+  // ---------- Couples Sanctuary Room Management ----------
+  function isCoupleRoom(roomId) {
+    if (!roomId || roomId === 'general' || roomId === DEFAULT_ROOM) return false;
+    try {
+      var meta = JSON.parse(localStorage.getItem('linkchat.roomMeta.' + roomId) || '{}');
+      return Boolean(meta.isCouple);
+    } catch (e) {
+      return false;
+    }
+  }
+
+  function setCoupleRoom(roomId, isCouple) {
+    if (!roomId || roomId === 'general') return;
+    try {
+      var meta = JSON.parse(localStorage.getItem('linkchat.roomMeta.' + roomId) || '{}');
+      meta.isCouple = Boolean(isCouple);
+      localStorage.setItem('linkchat.roomMeta.' + roomId, JSON.stringify(meta));
+    } catch (e) {}
+    updateCoupleRoomUI(Boolean(isCouple));
+  }
+
+  function updateCoupleRoomUI(isCouple) {
+    var quickLoveBtn = $('quick-love-btn');
+    var coupleMenuSection = $('couple-menu-section');
+    var coupleToggleStatus = $('menu-couple-toggle-status');
+    var coupleGlanceChip = $('couple-glance-chip');
+
+    if (quickLoveBtn) quickLoveBtn.hidden = !isCouple;
+    if (coupleMenuSection) coupleMenuSection.hidden = !isCouple;
+    if (coupleToggleStatus) {
+      coupleToggleStatus.textContent = isCouple ? 'ON' : 'OFF';
+      coupleToggleStatus.classList.toggle('active', isCouple);
+    }
+    if (coupleGlanceChip && !isCouple) {
+      coupleGlanceChip.hidden = true;
+    }
+  }
+
+  if (ui.menuCoupleToggleBtn) {
+    ui.menuCoupleToggleBtn.addEventListener('click', function () {
+      if (!state.room || state.room === 'general') {
+        toast('Couples Sanctuary is only available for private rooms.');
+        return;
+      }
+      var currentlyCouple = isCoupleRoom(state.room);
+      var nextState = !currentlyCouple;
+      setCoupleRoom(state.room, nextState);
+      toast(nextState ? 'Couples Sanctuary Enabled 💖' : 'Standard Room Mode Enabled 🔒');
     });
   }
 
@@ -5454,6 +5511,7 @@
     state.msgs = new Map();
     state.ready = false;
     if (ui.e2eeBadge) ui.e2eeBadge.hidden = true;
+    updateCoupleRoomUI(false);
   }
 
   async function enterChat() {
@@ -5461,6 +5519,7 @@
     updateComposer();
     markRoomAsRead(state.room);
     ui.roomName.textContent = state.roomDisplayName;
+    updateCoupleRoomUI(isCoupleRoom(state.room));
     if (ui.roomsBtn) ui.roomsBtn.hidden = !PRIVATE_ROOMS;
     if (ui.deleteCurrentRoomBtn) {
       var canDelete = !(!PRIVATE_ROOMS || state.room === 'general' || state.room === DEFAULT_ROOM);
