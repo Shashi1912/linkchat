@@ -92,9 +92,9 @@
     // QR Code Modal
     qrBtn: $('qr-btn'), qrModal: $('qr-modal'), qrContainer: $('qr-container'),
     qrRoomName: $('qr-room-name'), qrRoomId: $('qr-room-id'), qrCopyBtn: $('qr-copy-btn'), qrCloseBtn: $('qr-close-btn'),
-    // Mesh Network & AI Swarm & Arena
-    meshBtn: $('mesh-btn'), aiBtn: $('ai-btn'),
-    menuMeshBtn: $('menu-mesh-btn'), menuAiBtn: $('menu-ai-btn'), menuArenaBtn: $('menu-arena-btn'),
+    // Mesh Network & Arena
+    meshBtn: $('mesh-btn'),
+    menuMeshBtn: $('menu-mesh-btn'), menuArenaBtn: $('menu-arena-btn'),
     meshPill: $('mesh-pill'), meshStatusText: $('mesh-status-text'),
     meshModal: $('mesh-modal'), meshTabQr: $('mesh-tab-qr'), meshTabScan: $('mesh-tab-scan'), meshTabManual: $('mesh-tab-manual'),
     meshViewQr: $('mesh-view-qr'), meshViewScan: $('mesh-view-scan'), meshViewManual: $('mesh-view-manual'),
@@ -103,12 +103,6 @@
     meshScanStatusText: $('mesh-scan-status-text'), meshToggleCameraBtn: $('mesh-toggle-camera-btn'),
     meshManualInput: $('mesh-manual-input'), meshConnectManualBtn: $('mesh-connect-manual-btn'),
     meshPeersCount: $('mesh-peers-count'), meshCloseBtn: $('mesh-close-btn'),
-    aiModal: $('ai-modal'), aiQuickGrid: $('ai-quick-grid'),
-    aiQuickSummaryBtn: $('ai-quick-summary-btn'), aiQuickPollBtn: $('ai-quick-poll-btn'),
-    aiQuickDecideBtn: $('ai-quick-decide-btn'), aiQuickDebateBtn: $('ai-quick-debate-btn'),
-    aiFormArea: $('ai-form-area'), aiFormDesc: $('ai-form-desc'), aiCustomPrompt: $('ai-custom-prompt'),
-    aiPollOptionsWrap: $('ai-poll-options-wrap'), aiPollOptsInput: $('ai-poll-opts-input'),
-    aiExecuteBtn: $('ai-execute-btn'), aiFormCancelBtn: $('ai-form-cancel-btn'), aiCloseBtn: $('ai-close-btn'),
     arenaModal: $('arena-modal'), arenaTabHockey: $('arena-tab-hockey'), arenaTabChess: $('arena-tab-chess'), arenaTabSnake: $('arena-tab-snake'),
     arenaCanvas: $('arena-canvas'), chessBoardWrap: $('chess-board-wrap'), arenaRestartBtn: $('arena-restart-btn'), arenaInviteBtn: $('arena-invite-btn'), arenaCloseBtn: $('arena-close-btn'),
     // Video Call PIP
@@ -2092,20 +2086,6 @@
       var audioPlayer = buildVoicePlayer(audioSrc, durSec, mine);
       b.append(audioPlayer);
       textSnippet = 'Voice note (' + durSec + 's)';
-    } else if (rawContent.startsWith('[ai:')) {
-      var aiMatch = rawContent.match(/^\[ai:([a-z]+):(.*)\]$/);
-      if (aiMatch) {
-        try {
-          var cardPayload = JSON.parse(decodeURIComponent(aiMatch[2]));
-          var aiCard = buildAiCardElement(cardPayload);
-          b.append(aiCard);
-          textSnippet = '✨ AI ' + (cardPayload.title || 'Swarm');
-        } catch (e) {
-          b.append(el('div', 'text', rawContent));
-        }
-      } else {
-        b.append(el('div', 'text', rawContent));
-      }
     } else if (rawContent) {
       b.append(el('div', 'text', rawContent));
     }
@@ -2146,28 +2126,6 @@
 
     row.append(b);
     return row;
-  }
-
-  function buildAiCardElement(card) {
-    var cardDiv = el('div', 'ai-glass-card');
-    var header = el('div', 'ai-glass-header');
-    var title = el('div', 'ai-glass-title', card.title || '✨ LinkChat AI Swarm');
-    var badge = el('span', 'ai-badge', card.type ? card.type.toUpperCase() : 'AI');
-    header.append(title, badge);
-    cardDiv.append(header);
-
-    if (card.subtitle) {
-      var sub = el('div', null, card.subtitle);
-      sub.style.fontSize = '11.5px';
-      sub.style.opacity = '0.75';
-      sub.style.marginBottom = '8px';
-      cardDiv.append(sub);
-    }
-
-    var body = el('div');
-    body.innerHTML = card.html || '';
-    cardDiv.append(body);
-    return cardDiv;
   }
 
   // ---------- Message Queries ----------
@@ -2703,39 +2661,6 @@
     render('bottom');
     playSendSound();
     insert(m);
-
-    // AI Swarm Command Interception
-    if (window.AISwarm && window.AISwarm.isCommand(text)) {
-      var hist = Array.from(state.msgs.values());
-      window.AISwarm.handleCommand(text, { messages: hist, sender: state.name }).then(function (card) {
-        if (!card) return;
-        var encoded = '[ai:' + card.type + ':' + encodeURIComponent(JSON.stringify(card)) + ']';
-        var aiMsg = {
-          id: uuid(),
-          user_id: 'ai-swarm-node',
-          display_name: '🧠 AI Swarm',
-          content: encoded,
-          raw: null,
-          ts: Date.now() + 100,
-          status: 'sent',
-          seq: ++state.seq
-        };
-        state.msgs.set(aiMsg.id, aiMsg);
-        render('bottom');
-        playMessageSound();
-
-        if (window.MeshManager) {
-          window.MeshManager.broadcast({
-            type: 'chat_message',
-            id: aiMsg.id,
-            user_id: aiMsg.user_id,
-            display_name: aiMsg.display_name,
-            content: aiMsg.content,
-            ts: aiMsg.ts
-          });
-        }
-      });
-    }
   });
 
   // ---------- Photos ----------
@@ -4029,116 +3954,6 @@
   }
 
   // =========================================================================
-  // LINKCHAT v4.0 — FEATURE 3: MULTI-AGENT PERSONAL AI SWARM
-  // =========================================================================
-  var currentAiAction = null;
-
-  function openAiModal() {
-    if (!ui.aiModal) return;
-    ui.aiModal.hidden = false;
-    resetAiModalView();
-  }
-
-  function closeAiModal() {
-    if (!ui.aiModal) return;
-    ui.aiModal.hidden = true;
-    resetAiModalView();
-  }
-
-  function resetAiModalView() {
-    if (ui.aiQuickGrid) ui.aiQuickGrid.hidden = false;
-    if (ui.aiFormArea) ui.aiFormArea.hidden = true;
-    if (ui.aiMainActions) ui.aiMainActions.hidden = false;
-    if (ui.aiCustomPrompt) ui.aiCustomPrompt.value = '';
-    if (ui.aiPollOptsInput) ui.aiPollOptsInput.value = '';
-    if (ui.aiPollOptionsWrap) ui.aiPollOptionsWrap.hidden = true;
-    currentAiAction = null;
-  }
-
-  function prepareAiAction(action) {
-    currentAiAction = action;
-    if (ui.aiQuickGrid) ui.aiQuickGrid.hidden = true;
-    if (ui.aiMainActions) ui.aiMainActions.hidden = true;
-    if (ui.aiFormArea) ui.aiFormArea.hidden = false;
-
-    if (action === 'summary') {
-      if (ui.aiFormDesc) ui.aiFormDesc.innerHTML = '📝 <strong>Room Catch-Up Summary:</strong> Distills recent conversation, active participants, and extracted action items.';
-      if (ui.aiCustomPrompt) ui.aiCustomPrompt.placeholder = 'Optional focus (or leave blank to summarize all recent)';
-      if (ui.aiPollOptionsWrap) ui.aiPollOptionsWrap.hidden = true;
-    } else if (action === 'poll') {
-      if (ui.aiFormDesc) ui.aiFormDesc.innerHTML = '📊 <strong>Consensus Poll:</strong> Create a live voting question with synchronized percentage bars.';
-      if (ui.aiCustomPrompt) ui.aiCustomPrompt.placeholder = 'Poll Question (e.g. When should we launch v4.0?)';
-      if (ui.aiPollOptionsWrap) ui.aiPollOptionsWrap.hidden = false;
-      if (ui.aiPollOptsInput) ui.aiPollOptsInput.placeholder = 'Option 1 | Option 2 | Option 3';
-    } else if (action === 'decide') {
-      if (ui.aiFormDesc) ui.aiFormDesc.innerHTML = '⚖️ <strong>Decision Matrix:</strong> Evaluates options against weighted velocity, UX, and risk criteria.';
-      if (ui.aiCustomPrompt) ui.aiCustomPrompt.placeholder = 'Option A vs Option B vs Option C';
-      if (ui.aiPollOptionsWrap) ui.aiPollOptionsWrap.hidden = true;
-    } else if (action === 'debate') {
-      if (ui.aiFormDesc) ui.aiFormDesc.innerHTML = '💡 <strong>3-Agent Swarm:</strong> Visionary, Pragmatist, and Devil’s Advocate synthesize perspectives on any topic.';
-      if (ui.aiCustomPrompt) ui.aiCustomPrompt.placeholder = 'Topic or dilemma to brainstorm...';
-      if (ui.aiPollOptionsWrap) ui.aiPollOptionsWrap.hidden = true;
-    }
-  }
-
-  async function executeAiAction() {
-    if (!window.AISwarm) return;
-    var prompt = ui.aiCustomPrompt ? ui.aiCustomPrompt.value.trim() : '';
-    var card = null;
-
-    if (currentAiAction === 'summary') {
-      card = window.AISwarm.generateSummary(Array.from(state.msgs.values()));
-    } else if (currentAiAction === 'poll') {
-      var question = prompt || 'Group Decision';
-      var optsStr = ui.aiPollOptsInput ? ui.aiPollOptsInput.value.trim() : '';
-      var fullArgs = optsStr ? (question + ' | ' + optsStr) : question;
-      card = window.AISwarm.createPollFromArgs(fullArgs, state.name || 'Host');
-    } else if (currentAiAction === 'decide') {
-      card = window.AISwarm.generateDecisionMatrix(prompt || 'Option 1 vs Option 2');
-    } else if (currentAiAction === 'debate') {
-      card = window.AISwarm.runSwarmDebate(prompt || 'How should we proceed?');
-    }
-
-    if (card) {
-      closeAiModal();
-      var encoded = '[ai:' + card.type + ':' + encodeURIComponent(JSON.stringify(card)) + ']';
-      var aiMsg = {
-        id: uuid(),
-        user_id: 'ai-swarm-node',
-        display_name: '🧠 AI Swarm',
-        content: encoded,
-        raw: null,
-        ts: Date.now(),
-        status: 'sent',
-        seq: ++state.seq
-      };
-      state.msgs.set(aiMsg.id, aiMsg);
-      render('bottom');
-      playSendSound();
-
-      if (window.MeshManager) {
-        window.MeshManager.broadcast({
-          type: 'chat_message',
-          id: aiMsg.id,
-          user_id: aiMsg.user_id,
-          display_name: aiMsg.display_name,
-          content: aiMsg.content,
-          ts: aiMsg.ts
-        });
-      }
-    }
-  }
-
-  if (ui.aiBtn) ui.aiBtn.addEventListener('click', openAiModal);
-  if (ui.aiCloseBtn) ui.aiCloseBtn.addEventListener('click', closeAiModal);
-  if (ui.aiQuickSummaryBtn) ui.aiQuickSummaryBtn.addEventListener('click', function () { prepareAiAction('summary'); });
-  if (ui.aiQuickPollBtn) ui.aiQuickPollBtn.addEventListener('click', function () { prepareAiAction('poll'); });
-  if (ui.aiQuickDecideBtn) ui.aiQuickDecideBtn.addEventListener('click', function () { prepareAiAction('decide'); });
-  if (ui.aiQuickDebateBtn) ui.aiQuickDebateBtn.addEventListener('click', function () { prepareAiAction('debate'); });
-  if (ui.aiFormCancelBtn) ui.aiFormCancelBtn.addEventListener('click', resetAiModalView);
-  if (ui.aiExecuteBtn) ui.aiExecuteBtn.addEventListener('click', executeAiAction);
-
-  // =========================================================================
   // LINKCHAT v4.0 — FEATURE 2: IN-CHAT GAMING ARENA (LAST PRIORITY)
   // =========================================================================
   function openArenaModal(gameName) {
@@ -4183,12 +3998,6 @@
     ui.menuMeshBtn.addEventListener('click', function () {
       closeHeaderMenu();
       openMeshModal();
-    });
-  }
-  if (ui.menuAiBtn) {
-    ui.menuAiBtn.addEventListener('click', function () {
-      closeHeaderMenu();
-      openAiModal();
     });
   }
   if (ui.menuArenaBtn) {
@@ -4742,9 +4551,6 @@
       window.MeshManager.on('status-change', function () {
         updateMeshPeersUI();
       });
-    }
-    if (window.AISwarm) {
-      window.AISwarm.init();
     }
 
     var saved = load(NAME_KEY);

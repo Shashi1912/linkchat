@@ -448,13 +448,6 @@
           </svg>
         </button>
 
-        <!-- AI Swarm Button -->
-        <button id="ai-btn" class="apple-icon-btn" type="button" title="Multi-Agent AI Swarm & Consensus" aria-label="AI Swarm">
-          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
-          </svg>
-        </button>
-
         <!-- Switch Room Button -->
         <button id="rooms-btn" class="apple-icon-btn" type="button" title="Switch room" aria-label="Switch room" hidden>
           <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -509,12 +502,6 @@
               <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
             </svg>
             <span>Offline Mesh P2P</span>
-          </button>
-          <button id="menu-ai-btn" class="menu-item" type="button" role="menuitem">
-            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
-            </svg>
-            <span>AI Swarm & Polls</span>
           </button>
           <button id="menu-arena-btn" class="menu-item" type="button" role="menuitem">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -872,75 +859,6 @@
     </div>
   </div>
 
-  <!-- Multi-Agent Personal AI Swarm Modal -->
-  <div id="ai-modal" class="apple-modal-scrim" hidden>
-    <div class="apple-modal-card ai-card" role="dialog" aria-modal="true" aria-labelledby="ai-modal-title">
-      <div class="ai-modal-header">
-        <div class="apple-modal-icon-wrap ai-icon-wrap">
-          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
-          </svg>
-        </div>
-        <h3 id="ai-modal-title">Personal AI Swarm</h3>
-        <p class="apple-modal-desc">Multi-agent co-presence: room summaries, consensus polls, decision matrix & debate.</p>
-      </div>
-
-      <!-- Quick Action Cards Grid -->
-      <div class="ai-quick-grid" id="ai-quick-grid">
-        <button id="ai-quick-summary-btn" type="button" class="ai-quick-action-btn">
-          <div class="ai-action-icon">📝</div>
-          <div class="ai-action-text">
-            <strong>Room Catch-Up</strong>
-            <span>Distill key topics & action items</span>
-          </div>
-        </button>
-
-        <button id="ai-quick-poll-btn" type="button" class="ai-quick-action-btn">
-          <div class="ai-action-icon">📊</div>
-          <div class="ai-action-text">
-            <strong>Consensus Poll</strong>
-            <span>Create live voting for group choices</span>
-          </div>
-        </button>
-
-        <button id="ai-quick-decide-btn" type="button" class="ai-quick-action-btn">
-          <div class="ai-action-icon">⚖️</div>
-          <div class="ai-action-text">
-            <strong>Decision Matrix</strong>
-            <span>Multi-criteria weighted scoring</span>
-          </div>
-        </button>
-
-        <button id="ai-quick-debate-btn" type="button" class="ai-quick-action-btn">
-          <div class="ai-action-icon">💡</div>
-          <div class="ai-action-text">
-            <strong>3-Agent Swarm</strong>
-            <span>Visionary vs Pragmatist vs Critic</span>
-          </div>
-        </button>
-      </div>
-
-      <!-- Dynamic Form Area -->
-      <div id="ai-form-area" class="ai-form-area" hidden>
-        <div id="ai-form-desc" class="ai-form-desc" style="font-size:13px; margin-bottom:8px; opacity:0.9;"></div>
-        <div class="input-group" style="margin-bottom: 8px;">
-          <input id="ai-custom-prompt" type="text" placeholder="Type topic or question..." />
-        </div>
-        <div id="ai-poll-options-wrap" class="input-group" style="margin-bottom: 8px;" hidden>
-          <input id="ai-poll-opts-input" type="text" placeholder="Option 1 | Option 2 | Option 3" />
-        </div>
-        <div class="apple-modal-actions" style="margin-top: 6px;">
-          <button id="ai-execute-btn" type="button" class="btn-apple-primary" style="width: 100%;">Post to Room</button>
-          <button id="ai-form-cancel-btn" type="button" class="btn-apple-cancel">Back</button>
-        </div>
-      </div>
-
-      <div class="apple-modal-actions" id="ai-main-actions" style="margin-top: 14px;">
-        <button id="ai-close-btn" type="button" class="btn-apple-cancel">Close</button>
-      </div>
-    </div>
-  </div>
-
   <!-- Gaming Arena Modal (Zero-Download 60FPS) -->
   <div id="arena-modal" class="apple-modal-scrim" hidden>
     <div class="apple-modal-card arena-card" role="dialog" aria-modal="true" aria-labelledby="arena-modal-title">
@@ -970,7 +888,6 @@
   <script src="qr.min.js"></script>
   <script src="mesh.js"></script>
   <script src="games.js"></script>
-  <script src="ai.js"></script>
   <script src="app.js?v=4.0"></script>
 </body>
 </html>
