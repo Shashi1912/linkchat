@@ -19,6 +19,13 @@
   var PHOTO_MAX_PX = 1600;
   var COLUMNS = 'id, room_id, user_id, display_name, content, image_path, created_at';
 
+  // Voice notes use this while drawing a message. (The call code has its own copy.)
+  function formatDuration(sec) {
+    var m = Math.floor(sec / 60);
+    var s = sec % 60;
+    return (m < 10 ? '0' + m : m) + ':' + (s < 10 ? '0' + s : s);
+  }
+
   // ---------- DOM ----------
   function $(id) { return document.getElementById(id); }
   var ui = {
