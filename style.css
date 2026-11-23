@@ -4761,3 +4761,543 @@ mark.search-highlight {
 .namedrop-footer {
   width: 100%;
 }
+
+/* ==========================================================================
+   Apple Design Lovers & Couples Suite Styles
+   ========================================================================== */
+
+/* 1. Header Hub Button & Glance Chip */
+.couple-btn-glow {
+  color: #ff2d55 !important;
+  position: relative;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.couple-btn-glow:hover {
+  transform: scale(1.08);
+  box-shadow: 0 0 16px rgba(255, 45, 85, 0.4);
+}
+.couple-glance-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 2px 7px;
+  background: rgba(255, 45, 85, 0.12);
+  border: 1px solid rgba(255, 45, 85, 0.2);
+  border-radius: 999px;
+  font-size: 10.5px;
+  font-weight: 600;
+  color: #ff2d55;
+  animation: pulseGlance 3s infinite ease-in-out;
+}
+@keyframes pulseGlance {
+  0%, 100% { opacity: 0.85; }
+  50% { opacity: 1; }
+}
+
+/* 2. Composer Quick Love Button */
+.apple-love-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 45, 85, 0.12);
+  color: #ff2d55;
+  cursor: pointer;
+  transition: transform 0.15s cubic-bezier(0.34, 1.56, 0.64, 1), background 0.2s ease;
+  flex-shrink: 0;
+  margin-right: 4px;
+}
+.apple-love-btn:hover {
+  transform: scale(1.12);
+  background: rgba(255, 45, 85, 0.2);
+}
+.apple-love-btn:active {
+  transform: scale(0.92);
+}
+
+/* 3. Floating Heart Particle Layer */
+.couple-particles-layer {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 999999;
+  overflow: hidden;
+}
+.floating-heart-particle {
+  position: absolute;
+  pointer-events: none;
+  animation: floatHeartUp 3.2s cubic-bezier(0.25, 1, 0.5, 1) forwards;
+  will-change: transform, opacity;
+  filter: drop-shadow(0 2px 6px rgba(255, 45, 85, 0.4));
+}
+@keyframes floatHeartUp {
+  0% {
+    transform: translateY(0) scale(0.6) rotate(0deg);
+    opacity: 0;
+  }
+  15% {
+    opacity: 1;
+    transform: translateY(-80px) scale(1.2) rotate(-8deg);
+  }
+  80% {
+    opacity: 0.9;
+  }
+  100% {
+    transform: translateY(-92vh) scale(1.4) rotate(16deg);
+    opacity: 0;
+  }
+}
+
+/* 4. Hold Hands & Heart-Sync Modal */
+.couple-aurora-glow {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 240px;
+  background: radial-gradient(circle at 50% 0%, rgba(255, 45, 85, 0.35) 0%, rgba(175, 82, 222, 0.2) 50%, transparent 80%);
+  pointer-events: none;
+  border-radius: 28px 28px 0 0;
+  animation: auroraBreath 4s ease-in-out infinite alternate;
+}
+@keyframes auroraBreath {
+  0% { opacity: 0.6; transform: scaleY(0.9); }
+  100% { opacity: 1; transform: scaleY(1.1); }
+}
+
+.couple-hands-card {
+  max-width: 380px;
+  text-align: center;
+  position: relative;
+  overflow: hidden;
+}
+.couple-modal-header {
+  margin-bottom: 20px;
+}
+.couple-hands-timer {
+  display: inline-block;
+  margin-top: 8px;
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Rounded", sans-serif;
+  font-size: 20px;
+  font-weight: 700;
+  color: #ff2d55;
+  background: rgba(255, 45, 85, 0.1);
+  padding: 3px 12px;
+  border-radius: 999px;
+  letter-spacing: 0.5px;
+}
+
+.couple-touch-arena {
+  display: flex;
+  align-items: center;
+  justify-content: space-around;
+  position: relative;
+  margin: 25px 0 30px;
+}
+.couple-pad-wrap {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+.couple-touch-pad {
+  width: 90px;
+  height: 90px;
+  border-radius: 50%;
+  border: 2px solid rgba(255, 45, 85, 0.3);
+  background: rgba(255, 45, 85, 0.08);
+  color: #ff2d55;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  touch-action: none;
+  user-select: none;
+  -webkit-user-select: none;
+}
+.couple-touch-pad:hover {
+  transform: scale(1.05);
+  border-color: #ff2d55;
+}
+.couple-touch-pad.active {
+  background: radial-gradient(circle, #ff2d55 0%, #ff375f 60%, rgba(255, 45, 85, 0.3) 100%);
+  color: #ffffff;
+  transform: scale(1.1);
+  box-shadow: 0 0 30px rgba(255, 45, 85, 0.6);
+  border-color: #ffffff;
+}
+.couple-touch-pad.partner-pad {
+  border-color: rgba(175, 82, 222, 0.3);
+  background: rgba(175, 82, 222, 0.08);
+  color: #af52de;
+}
+.couple-touch-pad.partner-pad.active {
+  background: radial-gradient(circle, #af52de 0%, #bf5af2 60%, rgba(175, 82, 222, 0.3) 100%);
+  color: #ffffff;
+  box-shadow: 0 0 30px rgba(175, 82, 222, 0.6);
+  border-color: #ffffff;
+}
+.pad-label {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--apple-secondary-label);
+}
+
+.couple-hands-bridge {
+  position: absolute;
+  top: 45px;
+  left: 30%;
+  right: 30%;
+  height: 3px;
+  background: rgba(120, 120, 128, 0.15);
+  border-radius: 999px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.3s ease;
+}
+.couple-hands-bridge.connected {
+  background: linear-gradient(90deg, #ff2d55, #af52de);
+  box-shadow: 0 0 16px rgba(255, 45, 85, 0.8);
+  height: 4px;
+}
+.bridge-sparkle {
+  font-size: 18px;
+  opacity: 0;
+  transition: opacity 0.3s ease, transform 0.3s cubic-bezier(0.34, 1.56, 0.64, 1);
+  transform: scale(0.5);
+}
+.couple-hands-bridge.connected .bridge-sparkle {
+  opacity: 1;
+  transform: scale(1.2);
+  animation: pulseSparkle 1.2s infinite ease-in-out;
+}
+@keyframes pulseSparkle {
+  0%, 100% { transform: scale(1); }
+  50% { transform: scale(1.3); }
+}
+
+/* 5. Under the Same Sky Compass Modal */
+.couple-compass-card {
+  max-width: 360px;
+  text-align: center;
+}
+.compass-stage {
+  margin: 25px auto;
+  width: 200px;
+  height: 200px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.compass-outer-ring {
+  width: 190px;
+  height: 190px;
+  border-radius: 50%;
+  border: 2px dashed rgba(120, 120, 128, 0.25);
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(120, 120, 128, 0.04);
+}
+.compass-cardinal {
+  position: absolute;
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--apple-secondary-label);
+}
+.compass-cardinal.n { top: 6px; }
+.compass-cardinal.e { right: 8px; }
+.compass-cardinal.s { bottom: 6px; }
+.compass-cardinal.w { left: 8px; }
+
+.compass-needle {
+  width: 8px;
+  height: 150px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: space-between;
+  transition: transform 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.needle-arrow {
+  width: 0;
+  height: 0;
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-bottom: 22px solid #ff2d55;
+  filter: drop-shadow(0 2px 5px rgba(255, 45, 85, 0.5));
+}
+.needle-heart {
+  font-size: 18px;
+  margin-top: 15px;
+}
+
+.compass-align-banner {
+  display: none;
+  padding: 8px 12px;
+  background: linear-gradient(90deg, rgba(255, 215, 0, 0.15), rgba(255, 45, 85, 0.15));
+  border: 1px solid rgba(255, 215, 0, 0.4);
+  border-radius: 12px;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: #ff9500;
+  margin-bottom: 15px;
+  animation: alignFlash 1.5s infinite alternate ease-in-out;
+}
+.compass-align-banner.active {
+  display: block;
+}
+@keyframes alignFlash {
+  0% { box-shadow: 0 0 10px rgba(255, 215, 0, 0.2); }
+  100% { box-shadow: 0 0 22px rgba(255, 215, 0, 0.5); }
+}
+
+.compass-distance-box {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin-bottom: 20px;
+}
+.compass-distance-box strong {
+  font-size: 19px;
+  font-weight: 700;
+  color: var(--apple-label);
+}
+.compass-distance-box span {
+  font-size: 12px;
+  color: var(--apple-secondary-label);
+}
+
+/* 6. Listen Together Ambient Soundscapes */
+.couple-ambient-card {
+  max-width: 380px;
+}
+.ambient-status-chip {
+  display: inline-block;
+  margin-top: 6px;
+  padding: 3px 10px;
+  border-radius: 999px;
+  background: rgba(120, 120, 128, 0.1);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--apple-secondary-label);
+}
+.ambient-tracks-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+  margin: 20px 0 25px;
+}
+.ambient-track-card {
+  background: rgba(120, 120, 128, 0.08);
+  border: 1.5px solid rgba(120, 120, 128, 0.12);
+  border-radius: 16px;
+  padding: 16px 12px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  color: var(--apple-label);
+}
+.ambient-track-card:hover {
+  transform: translateY(-2px);
+  background: rgba(120, 120, 128, 0.14);
+}
+.ambient-track-card.active {
+  background: rgba(255, 45, 85, 0.12);
+  border-color: #ff2d55;
+  box-shadow: 0 4px 18px rgba(255, 45, 85, 0.25);
+}
+.ambient-icon {
+  font-size: 28px;
+  margin-bottom: 8px;
+}
+.ambient-track-card strong {
+  font-size: 13.5px;
+  margin-bottom: 2px;
+}
+.ambient-track-card small {
+  font-size: 10.5px;
+  color: var(--apple-secondary-label);
+}
+
+/* 7. Couple Milestones & Countdown */
+.couple-milestones-card {
+  max-width: 400px;
+  max-height: 85vh;
+  overflow-y: auto;
+}
+.milestone-featured-card {
+  background: linear-gradient(135deg, rgba(255, 45, 85, 0.15), rgba(175, 82, 222, 0.12));
+  border: 1px solid rgba(255, 45, 85, 0.25);
+  border-radius: 20px;
+  padding: 20px;
+  text-align: center;
+  margin-bottom: 14px;
+}
+.milestone-featured-card.countdown-card {
+  background: linear-gradient(135deg, rgba(10, 132, 255, 0.12), rgba(94, 92, 230, 0.12));
+  border-color: rgba(10, 132, 255, 0.25);
+}
+.milestone-heart-icon {
+  font-size: 26px;
+}
+.milestone-big-number {
+  font-family: -apple-system, BlinkMacSystemFont, "SF Pro Rounded", sans-serif;
+  font-size: 30px;
+  font-weight: 800;
+  color: var(--apple-label);
+  margin: 4px 0 2px;
+}
+.milestone-subtext {
+  font-size: 12px;
+  color: var(--apple-secondary-label);
+}
+.milestones-form-group {
+  margin-bottom: 14px;
+  text-align: left;
+}
+.milestones-form-group label {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--apple-secondary-label);
+  display: block;
+  margin-bottom: 5px;
+}
+.apple-date-input {
+  width: 100%;
+  padding: 8px 12px;
+  border-radius: 10px;
+  border: 1px solid var(--apple-border);
+  background: var(--apple-surface);
+  color: var(--apple-label);
+  font-size: 13px;
+  font-family: inherit;
+}
+
+.couple-bucket-section {
+  text-align: left;
+  margin: 18px 0;
+}
+.couple-bucket-section h4 {
+  font-size: 13px;
+  margin-bottom: 8px;
+  color: var(--apple-label);
+}
+.couple-bucket-list {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-bottom: 10px;
+  max-height: 140px;
+  overflow-y: auto;
+}
+.couple-bucket-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 12.5px;
+  padding: 6px 10px;
+  border-radius: 8px;
+  background: rgba(120, 120, 128, 0.06);
+  color: var(--apple-label);
+  transition: all 0.15s ease;
+}
+.couple-bucket-row.done {
+  text-decoration: line-through;
+  opacity: 0.6;
+}
+.bucket-add-row {
+  display: flex;
+  gap: 8px;
+}
+
+/* 8. Foggy Glass Scratch-Off Notes */
+.foggy-secret-card {
+  position: relative;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px solid rgba(255, 45, 85, 0.3);
+  border-radius: 16px;
+  padding: 10px 12px;
+  max-width: 310px;
+  overflow: hidden;
+  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.06);
+}
+@media (prefers-color-scheme: dark) {
+  .foggy-secret-card {
+    background: rgba(30, 30, 35, 0.75);
+    border-color: rgba(255, 45, 85, 0.4);
+  }
+}
+.foggy-card-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  margin-bottom: 8px;
+  color: #ff2d55;
+}
+.foggy-card-header small {
+  margin-left: auto;
+  font-size: 10.5px;
+  color: var(--apple-secondary-label);
+}
+.foggy-canvas-stage {
+  position: relative;
+  width: 100%;
+  min-height: 120px;
+  border-radius: 10px;
+  overflow: hidden;
+}
+.foggy-revealed-text {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 14px;
+  text-align: center;
+  font-size: 14.5px;
+  font-weight: 500;
+  line-height: 1.45;
+  color: var(--apple-label);
+  background: radial-gradient(circle, rgba(255, 45, 85, 0.1) 0%, transparent 80%);
+  user-select: text;
+  word-break: break-word;
+}
+.foggy-scratch-canvas {
+  position: absolute;
+  inset: 0;
+  width: 100%;
+  height: 100%;
+  cursor: crosshair;
+  touch-action: none;
+}
+.foggy-card-footer {
+  margin-top: 8px;
+  text-align: right;
+}
+.btn-refog {
+  background: none;
+  border: none;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--apple-secondary-label);
+  cursor: pointer;
+  padding: 3px 6px;
+  border-radius: 6px;
+}
+.btn-refog:hover {
+  background: rgba(120, 120, 128, 0.12);
+  color: var(--apple-label);
+}

@@ -3105,6 +3105,10 @@
       var capsuleCard = window.Capsules.renderCard(rawContent);
       b.append(capsuleCard);
       textSnippet = 'Capsule ⏳📍';
+    } else if (window.Couple && window.Couple.isFoggy(rawContent)) {
+      var foggyCard = window.Couple.renderFoggyCard(rawContent, mine);
+      b.append(foggyCard);
+      textSnippet = '🌫️ Secret Love Note (Rub to reveal)';
     } else if (rawContent) {
       b.append(el('div', 'text', rawContent));
     }
@@ -3608,6 +3612,22 @@
         }
         render('keep');
       }
+    })
+    // Lovers & Couples Suite Realtime Broadcasts
+    .on('broadcast', { event: 'couple_touch' }, function (payload) {
+      if (payload && payload.payload && window.Couple) window.Couple.handleBroadcast('couple_touch', payload.payload);
+    })
+    .on('broadcast', { event: 'couple_thinking' }, function (payload) {
+      if (payload && payload.payload && window.Couple) window.Couple.handleBroadcast('couple_thinking', payload.payload);
+    })
+    .on('broadcast', { event: 'couple_coords' }, function (payload) {
+      if (payload && payload.payload && window.Couple) window.Couple.handleBroadcast('couple_coords', payload.payload);
+    })
+    .on('broadcast', { event: 'couple_ambient' }, function (payload) {
+      if (payload && payload.payload && window.Couple) window.Couple.handleBroadcast('couple_ambient', payload.payload);
+    })
+    .on('broadcast', { event: 'couple_status' }, function (payload) {
+      if (payload && payload.payload && window.Couple) window.Couple.handleBroadcast('couple_status', payload.payload);
     })
     // 2. Database postgres_changes fallback (filtered in JavaScript to avoid walrus filter bugs)
     .on('postgres_changes',
@@ -5962,6 +5982,27 @@
       },
       getChannel: function () {
         return state.channel;
+      }
+    });
+  }
+
+  // Lovers & Couples Suite Initialization
+  if (window.Couple) {
+    window.Couple.init({
+      getChannel: function () { return state.channel; },
+      getUser: function () { return state.user; },
+      getName: function () { return state.name; },
+      getRoom: function () { return state.room; },
+      sendMessage: function (content) {
+        if (!state.user) return;
+        var m = {
+          id: uuid(), user_id: state.user.id, display_name: state.name, content: content,
+          raw: null, ts: Date.now(), status: 'sending', seq: ++state.seq,
+        };
+        state.msgs.set(m.id, m);
+        render('bottom');
+        playSendSound();
+        insert(m);
       }
     });
   }

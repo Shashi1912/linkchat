@@ -463,6 +463,7 @@
               <span class="mesh-pulse-dot"></span>
               <span id="mesh-status-text">Mesh: Ready</span>
             </button>
+            <span id="couple-glance-chip" class="couple-glance-chip" hidden title="Partner mood & battery"></span>
           </div>
         </div>
       </div>
@@ -488,6 +489,13 @@
           <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
             <path d="M17 2l-5 5-5-5"></path>
             <rect x="6" y="7" width="12" height="15" rx="3"></rect>
+          </svg>
+        </button>
+
+        <!-- Couples Sanctuary Hub Button -->
+        <button id="couple-hub-btn" class="apple-icon-btn couple-btn-glow" type="button" title="Couples Sanctuary (Heart-Sync, Compass, Sounds)" aria-label="Couples Sanctuary">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
           </svg>
         </button>
 
@@ -629,6 +637,27 @@
               <rect x="6" y="7" width="12" height="15" rx="3"></rect>
             </svg>
             <span>NameDrop: Tap to Share Room</span>
+          </button>
+          <!-- Lovers / Couples Suite -->
+          <button id="menu-couple-hands-btn" class="menu-item" type="button" role="menuitem">
+            <span class="menu-item-icon">💓</span>
+            <span>Hold Hands & Heart-Sync</span>
+          </button>
+          <button id="menu-couple-compass-btn" class="menu-item" type="button" role="menuitem">
+            <span class="menu-item-icon">🧭</span>
+            <span>Under the Same Sky (Compass)</span>
+          </button>
+          <button id="menu-couple-ambient-btn" class="menu-item" type="button" role="menuitem">
+            <span class="menu-item-icon">🎧</span>
+            <span>Listen Together (Ambient Sounds)</span>
+          </button>
+          <button id="menu-couple-milestones-btn" class="menu-item" type="button" role="menuitem">
+            <span class="menu-item-icon">🗓️</span>
+            <span>Our Milestones & Countdown</span>
+          </button>
+          <button id="menu-couple-foggy-btn" class="menu-item" type="button" role="menuitem">
+            <span class="menu-item-icon">🌫️</span>
+            <span>Send Secret Foggy Note</span>
           </button>
           <button id="menu-search-btn" class="menu-item" type="button" role="menuitem">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -816,6 +845,12 @@
           <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round">
             <line x1="12" y1="5" x2="12" y2="19"></line>
             <line x1="5" y1="12" x2="19" y2="12"></line>
+          </svg>
+        </button>
+        <!-- Quick Thinking of You Heart Button -->
+        <button id="quick-love-btn" class="apple-love-btn" type="button" title="Send instant heart flutter (Thinking of You)" aria-label="Thinking of you">
+          <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+            <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path>
           </svg>
         </button>
         <input id="file-input" type="file" accept="image/*" hidden />
@@ -1314,6 +1349,187 @@
     </div>
   </aside>
 
+  <!-- ==================== COUPLES SUITE MODALS ==================== -->
+
+  <!-- 1. Hold Hands & Heart-Sync Modal -->
+  <aside id="couple-hands-modal" class="namedrop-modal-scrim" hidden role="dialog" aria-modal="true" aria-label="Hold Hands & Heart-Sync">
+    <div class="couple-aurora-glow" aria-hidden="true"></div>
+    <div class="apple-modal-card couple-hands-card">
+      <div class="couple-modal-header">
+        <h3 id="couple-hands-title">Hold Hands & Heart-Sync</h3>
+        <p id="couple-hands-desc" class="apple-modal-desc">Touch and hold your thumbprint pad together</p>
+        <div id="couple-hands-timer" class="couple-hands-timer">00:00</div>
+      </div>
+
+      <div class="couple-touch-arena">
+        <!-- My Touch Pad -->
+        <div class="couple-pad-wrap">
+          <button id="couple-pad-mine" class="couple-touch-pad" type="button" aria-label="Your touch pad">
+            <div class="pad-ripple"></div>
+            <div class="pad-fingerprint">
+              <svg viewBox="0 0 24 24" width="38" height="38" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                <path d="M12 2a10 10 0 0 0-10 10c0 4.2 2.6 7.8 6.3 9.3"></path>
+                <path d="M12 6a6 6 0 0 0-6 6c0 3.1 1.9 5.8 4.7 6.9"></path>
+                <path d="M12 10a2 2 0 0 0-2 2c0 1.9 1.1 3.5 2.8 4.3"></path>
+                <path d="M15.7 18.9A6 6 0 0 0 18 12a6 6 0 0 0-6-6"></path>
+                <path d="M19.7 17.3A10 10 0 0 0 22 12a10 10 0 0 0-10-10"></path>
+              </svg>
+            </div>
+            <span class="pad-label">Your Touch</span>
+          </button>
+        </div>
+
+        <!-- Connecting Light Bridge -->
+        <div id="couple-hands-bridge" class="couple-hands-bridge" aria-hidden="true">
+          <span class="bridge-sparkle">💖</span>
+        </div>
+
+        <!-- Partner's Touch Pad -->
+        <div class="couple-pad-wrap">
+          <div id="couple-pad-partner" class="couple-touch-pad partner-pad" aria-label="Partner touch pad">
+            <div class="pad-ripple"></div>
+            <div class="pad-fingerprint">
+              <svg viewBox="0 0 24 24" width="38" height="38" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round">
+                <path d="M12 2a10 10 0 0 0-10 10c0 4.2 2.6 7.8 6.3 9.3"></path>
+                <path d="M12 6a6 6 0 0 0-6 6c0 3.1 1.9 5.8 4.7 6.9"></path>
+                <path d="M12 10a2 2 0 0 0-2 2c0 1.9 1.1 3.5 2.8 4.3"></path>
+                <path d="M15.7 18.9A6 6 0 0 0 18 12a6 6 0 0 0-6-6"></path>
+                <path d="M19.7 17.3A10 10 0 0 0 22 12a10 10 0 0 0-10-10"></path>
+              </svg>
+            </div>
+            <span class="pad-label">Partner's Touch</span>
+          </div>
+        </div>
+      </div>
+
+      <div class="couple-modal-footer">
+        <button id="couple-hands-close" type="button" class="btn-apple-cancel" style="width: 100%;">Done</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- 2. "Under the Same Sky" Compass Modal -->
+  <aside id="couple-compass-modal" class="namedrop-modal-scrim" hidden role="dialog" aria-modal="true" aria-label="Under the Same Sky Compass">
+    <div class="apple-modal-card couple-compass-card">
+      <div class="couple-modal-header">
+        <h3>Under the Same Sky</h3>
+        <p class="apple-modal-desc">Turn to face the physical direction of your partner</p>
+      </div>
+
+      <div class="compass-stage">
+        <div class="compass-outer-ring">
+          <div class="compass-cardinal n">N</div>
+          <div class="compass-cardinal e">E</div>
+          <div class="compass-cardinal s">S</div>
+          <div class="compass-cardinal w">W</div>
+          <div id="compass-dial-needle" class="compass-needle">
+            <div class="needle-arrow"></div>
+            <div class="needle-heart">❤️</div>
+          </div>
+        </div>
+      </div>
+
+      <div id="compass-align-banner" class="compass-align-banner">
+        <span>✨ You are facing towards each other right now! ✨</span>
+      </div>
+
+      <div class="compass-distance-box">
+        <strong id="compass-distance-val">Locating each other…</strong>
+        <span id="compass-distance-sub">Tap Share Coordinates to sync</span>
+      </div>
+
+      <div class="couple-modal-footer">
+        <button id="couple-compass-close" type="button" class="btn-apple-cancel" style="width: 100%;">Done</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- 3. "Listen Together" Ambient Sanctuary Modal -->
+  <aside id="couple-ambient-modal" class="namedrop-modal-scrim" hidden role="dialog" aria-modal="true" aria-label="Listen Together Ambient Sanctuary">
+    <div class="apple-modal-card couple-ambient-card">
+      <div class="couple-modal-header">
+        <h3>Listen Together</h3>
+        <p class="apple-modal-desc">Procedural ambient soundscapes synchronized in real-time</p>
+        <span id="ambient-status-text" class="ambient-status-chip">No ambient sound playing</span>
+      </div>
+
+      <div class="ambient-tracks-grid">
+        <button id="ambient-btn-rain" type="button" class="ambient-track-card">
+          <span class="ambient-icon">🌧️</span>
+          <strong>Rain on Glass</strong>
+          <small>Gentle rainfall & soft thunder</small>
+        </button>
+
+        <button id="ambient-btn-fire" type="button" class="ambient-track-card">
+          <span class="ambient-icon">🔥</span>
+          <strong>Cozy Fireplace</strong>
+          <small>Crackling hearth & embers</small>
+        </button>
+
+        <button id="ambient-btn-ocean" type="button" class="ambient-track-card">
+          <span class="ambient-icon">🌊</span>
+          <strong>Midnight Waves</strong>
+          <small>Rhythmic tidal surge</small>
+        </button>
+
+        <button id="ambient-btn-night" type="button" class="ambient-track-card">
+          <span class="ambient-icon">🌙</span>
+          <strong>Summer Night</strong>
+          <small>Warm breeze & crickets</small>
+        </button>
+      </div>
+
+      <div class="couple-modal-footer" style="display: flex; gap: 8px;">
+        <button id="ambient-btn-stop" type="button" class="btn-apple-secondary" style="flex: 1;">Mute Sounds</button>
+        <button id="couple-ambient-close" type="button" class="btn-apple-cancel" style="flex: 1;">Done</button>
+      </div>
+    </div>
+  </aside>
+
+  <!-- 4. Couple Milestones & Countdown Modal -->
+  <aside id="couple-milestones-modal" class="namedrop-modal-scrim" hidden role="dialog" aria-modal="true" aria-label="Couple Milestones">
+    <div class="apple-modal-card couple-milestones-card">
+      <div class="couple-modal-header">
+        <h3>Our Journey Together</h3>
+        <p class="apple-modal-desc">Private memories, countdowns & shared goals</p>
+      </div>
+
+      <!-- Days Together Card -->
+      <div class="milestone-featured-card">
+        <span class="milestone-heart-icon">💖</span>
+        <div id="milestone-days-val" class="milestone-big-number">412 Days</div>
+        <div id="milestone-days-sub" class="milestone-subtext">of laughing and loving together</div>
+      </div>
+
+      <div class="milestones-form-group">
+        <label for="milestone-anniversary-input">Our Anniversary / Day We Met:</label>
+        <input id="milestone-anniversary-input" type="date" class="apple-date-input" />
+      </div>
+
+      <!-- Reunion Countdown Card -->
+      <div class="milestone-featured-card countdown-card">
+        <span class="milestone-heart-icon">✈️</span>
+        <div id="milestone-reunion-val" class="milestone-big-number">Next Date</div>
+        <label for="milestone-reunion-input" style="font-size: 0.78rem; color: var(--text-secondary); margin-top: 4px;">Next Reunion Date:</label>
+        <input id="milestone-reunion-input" type="datetime-local" class="apple-date-input" />
+      </div>
+
+      <!-- Shared Bucket List -->
+      <div class="couple-bucket-section">
+        <h4>Our Shared Bucket List 💕</h4>
+        <div id="couple-bucket-list" class="couple-bucket-list"></div>
+        <div class="bucket-add-row">
+          <input id="milestone-bucket-input" type="text" placeholder="Add a couple dream or trip…" class="apple-text-field" />
+          <button id="milestone-add-bucket-btn" type="button" class="btn-apple-primary">Add</button>
+        </div>
+      </div>
+
+      <div class="couple-modal-footer">
+        <button id="couple-milestones-close" type="button" class="btn-apple-cancel" style="width: 100%;">Done</button>
+      </div>
+    </div>
+  </aside>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
   <script src="config.js"></script>
   <script src="qr.min.js"></script>
@@ -1322,6 +1538,7 @@
   <script src="feelings.js?v=2"></script>
   <script src="capsules.js"></script>
   <script src="namedrop.js"></script>
+  <script src="couple.js"></script>
   <script src="app.js?v=4.6"></script>
 </body>
 </html>

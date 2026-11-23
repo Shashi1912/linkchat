@@ -1,7 +1,7 @@
 // LinkChat Service Worker: 100% Airplane Mode Offline PWA Boot & Cross-Device Web Notifications
 'use strict';
 
-var CACHE_NAME = 'linkchat-v4.6-cache';
+var CACHE_NAME = 'linkchat-v4.7-cache';
 var STATIC_ASSETS = [
   './',
   './index.html',
@@ -12,6 +12,7 @@ var STATIC_ASSETS = [
   './feelings.js',
   './capsules.js',
   './namedrop.js',
+  './couple.js',
   './config.js',
   './manifest.json',
   './qr.min.js',
