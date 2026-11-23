@@ -69,8 +69,8 @@
       <div class="rooms-directory-box">
         <div class="section-title-bar">
           <div class="section-title-left">
-            <span class="col-pill">AVAILABLE ROOMS</span>
-            <h3>Active & Created Rooms</h3>
+            <span class="col-pill">YOUR ROOMS</span>
+            <h3>Your Unlocked Rooms</h3>
           </div>
           <div class="section-title-right">
             <!-- View Mode Switcher: Dropdown vs Tiles -->
@@ -94,8 +94,8 @@
             <button type="button" class="dropdown-trigger-btn" id="dropdown-trigger-btn" aria-haspopup="listbox" aria-expanded="false">
               <div class="dropdown-trigger-avatar" id="dropdown-trigger-avatar">💬</div>
               <div class="dropdown-trigger-info">
-                <strong id="dropdown-trigger-name">General Chat</strong>
-                <small id="dropdown-trigger-sub">Public Community Room</small>
+                <strong id="dropdown-trigger-name">No room selected</strong>
+                <small id="dropdown-trigger-sub">Enter room ID & key below to join</small>
               </div>
               <div class="dropdown-trigger-chevron">
                 <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
@@ -107,7 +107,7 @@
             <!-- Floating Apple Glass Dropdown Menu -->
             <div class="apple-dropdown-popover" id="dropdown-popover" hidden role="listbox">
               <div id="dropdown-items-list" class="dropdown-items-list">
-                <div class="rooms-loading">Loading rooms…</div>
+                <div class="rooms-loading">No rooms unlocked yet. Enter a room ID and key below to join.</div>
               </div>
             </div>
           </div>
@@ -131,7 +131,7 @@
         <!-- 2. Grid Tiles View Mode -->
         <div id="rooms-tiles-view" class="rooms-tiles-wrapper" hidden>
           <div id="rooms-list-container" class="rooms-directory-grid">
-            <div class="rooms-loading">Loading rooms…</div>
+            <div class="rooms-loading">No rooms unlocked yet. Enter a room ID and key below to join.</div>
           </div>
         </div>
       </div>
@@ -1081,6 +1081,6 @@
   <script src="games.js"></script>
   <script src="feelings.js?v=2"></script>
   <script src="capsules.js"></script>
-  <script src="app.js?v=4.2"></script>
+  <script src="app.js?v=4.3"></script>
 </body>
 </html>

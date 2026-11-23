@@ -3720,11 +3720,11 @@
     var count = unreadCountsByRoom[roomId] || 0;
     var countStr = count > 0 ? (' • <strong class="unread-text">' + count + ' unread</strong>') : '';
     if (ui.dropdownTriggerSub) {
-      ui.dropdownTriggerSub.innerHTML = (roomId ? ('#' + roomId) : 'Join with a room ID and key, or create one') + countStr;
+      ui.dropdownTriggerSub.innerHTML = (roomId ? ('#' + roomId) : 'Enter room ID & key below to join') + countStr;
     }
     if (ui.dropdownTriggerAvatar) {
-      ui.dropdownTriggerAvatar.textContent = isPrivate ? (roomName || roomId).charAt(0).toUpperCase() : '💬';
-      ui.dropdownTriggerAvatar.style.background = isPrivate ? 'linear-gradient(135deg, #af52de, #5856d6)' : 'var(--apple-blue-gradient)';
+      ui.dropdownTriggerAvatar.textContent = roomId ? (roomName || roomId).charAt(0).toUpperCase() : '🔒';
+      ui.dropdownTriggerAvatar.style.background = roomId ? 'linear-gradient(135deg, #af52de, #5856d6)' : 'rgba(120, 120, 128, 0.2)';
     }
     if (ui.dropdownDeleteBtn) {
       ui.dropdownDeleteBtn.hidden = !isPrivate || !roomId || roomId === 'general';
@@ -3956,7 +3956,7 @@
       tilesContainer.innerHTML = '';
 
       if (!rooms || !rooms.length) {
-        tilesContainer.innerHTML = '<div class="rooms-loading">No rooms yet. Join one with its ID and key, or create a room.</div>';
+        tilesContainer.innerHTML = '<div class="rooms-loading">No rooms unlocked yet. Enter a room ID and key below to join.</div>';
       }
 
       if (rooms && rooms.length) {
@@ -4007,7 +4007,7 @@
       dropList.innerHTML = '';
 
       if (!rooms || !rooms.length) {
-        dropList.innerHTML = '<div class="rooms-loading">No rooms yet. Join one with its ID and key, or create a room.</div>';
+        dropList.innerHTML = '<div class="rooms-loading">No rooms unlocked yet. Enter a room ID and key below to join.</div>';
       }
 
       if (rooms && rooms.length) {
@@ -4207,7 +4207,7 @@
   if (ui.dropdownEnterBtn) {
     ui.dropdownEnterBtn.addEventListener('click', function () {
       if (!currentSelectedRoom.id) {
-        toast('Join a room with its ID and key, or create one.');
+        toast('Enter a room ID and key below to join.');
         return;
       }
       handleRoomTileClick(currentSelectedRoom.id, currentSelectedRoom.name);
