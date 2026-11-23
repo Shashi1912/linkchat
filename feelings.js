@@ -35,6 +35,13 @@
 
   function escapeRe(s) { return s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'); }
 
+  // A cue is ignored when a negation word appears just before it ("not happy").
+  var NEGATION = /\b(not|never|no|isnt|isn't|dont|don't|wasnt|wasn't|aint|ain't)\b/;
+  function negated(t, idx) {
+    var before = t.substring(Math.max(0, idx - 30), idx).split(' ').slice(-4).join(' ');
+    return NEGATION.test(before);
+  }
+
   // Count matching cues for each feeling; return the best one if it's clear.
   function suggest(text) {
     var t = ' ' + String(text || '').toLowerCase().replace(/\s+/g, ' ') + ' ';
@@ -47,7 +54,8 @@
         var re = /^[a-z ']+$/.test(c)
           ? new RegExp('(^|[^a-z])' + escapeRe(c) + '([^a-z]|$)')
           : new RegExp(escapeRe(c));
-        if (re.test(t)) score++;
+        var m = re.exec(t);
+        if (m && !negated(t, m.index)) score++;
       });
       if (score > bestScore) { best = f; bestScore = score; }
     });

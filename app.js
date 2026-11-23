@@ -644,6 +644,9 @@
       }
     }
 
+    // Don't show the internal feeling tag in the notification text
+    if (window.Feelings) plainText = window.Feelings.decode(plainText).rest;
+
     var bodyText = plainText || 'Sent a photo';
 
     // Check if the chat tab is unfocused or hidden (e.g. user in another window, app, or tab)
@@ -2986,7 +2989,9 @@
     ui.input.style.height = Math.min(ui.input.scrollHeight + 2, 130) + 'px';
   }
   // ---------- Feeling (sender confirms; never attached automatically) ----------
-  var feel = { chosen: null };
+  // chosen: the feeling to send. fromSuggestion: true when the sender tapped
+  // the suggestion (it follows the text); false when picked from the list (kept).
+  var feel = { chosen: null, fromSuggestion: false };
 
   function renderFeelBar() {
     if (!window.Feelings) return;
@@ -3024,6 +3029,7 @@
       if (feel.chosen && feel.chosen.key === f.key) opt.classList.add('selected');
       opt.addEventListener('click', function () {
         feel.chosen = f;
+        feel.fromSuggestion = false;
         ui.feelMenu.hidden = true;
         renderFeelBar();
       });
@@ -3036,14 +3042,22 @@
     var sug = window.Feelings && window.Feelings.suggest(ui.input.value);
     if (!feel.chosen && sug) {
       feel.chosen = sug;   // the sender tapped the suggestion: confirmed
+      feel.fromSuggestion = true;
       renderFeelBar();
       return;
     }
     if (ui.feelMenu.hidden) openFeelMenu(); else ui.feelMenu.hidden = true;
   });
 
+  // Tapping anywhere else closes the feeling list
+  document.addEventListener('click', function (e) {
+    if (!ui.feelMenu.hidden && !ui.feelBar.contains(e.target)) ui.feelMenu.hidden = true;
+  });
+
   ui.input.addEventListener('input', function () {
     updateComposer();
+    // Typing changes the text, so a suggestion the sender confirmed no longer applies
+    if (feel.fromSuggestion) { feel.chosen = null; feel.fromSuggestion = false; }
     renderFeelBar();
     if (ui.input.value.trim().length > 0) {
       sendTypingSignal();
