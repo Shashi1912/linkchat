@@ -573,6 +573,13 @@
       <!-- Apple Glass Action Sheet Popover Menu for Mobile -->
       <div id="header-more-menu" class="apple-header-menu" hidden role="menu" aria-label="More options">
         <div class="header-menu-card">
+          <button id="menu-capsule-btn" class="menu-item" type="button" role="menuitem">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <polyline points="12 6 12 12 16 14"></polyline>
+            </svg>
+            <span>Time & Place Capsules ⏳</span>
+          </button>
           <button id="menu-mesh-btn" class="menu-item" type="button" role="menuitem">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="12" cy="12" r="10"></circle>
@@ -690,6 +697,23 @@
       <div id="feel-bar" class="feel-bar" hidden>
         <button id="feel-chip" type="button" class="feel-chip"></button>
         <div id="feel-menu" class="feel-menu" role="listbox" aria-label="Choose a feeling" hidden></div>
+      </div>
+      <!-- Apple Attachment Action Sheet (iMessage Tray) -->
+      <div id="attach-action-sheet" class="apple-action-sheet" hidden role="menu" aria-label="Attachment options">
+        <button id="attach-photo-item" class="action-sheet-item" type="button">
+          <span class="action-item-icon">📷</span>
+          <div class="action-item-text">
+            <strong>Photo Library</strong>
+            <span>Send photo</span>
+          </div>
+        </button>
+        <button id="attach-capsule-item" class="action-sheet-item" type="button">
+          <span class="action-item-icon">⏳</span>
+          <div class="action-item-text">
+            <strong>Time & Place Capsule</strong>
+            <span>Lock until future or location</span>
+          </div>
+        </button>
       </div>
       <form id="composer" class="composer-apple" novalidate>
         <!-- Apple Attachment (+) Button -->
@@ -966,12 +990,97 @@
     </div>
   </div>
 
+  <!-- Time Capsules & Place Lock Modal -->
+  <div id="capsule-modal" class="apple-modal-scrim" hidden>
+    <div class="apple-modal-card capsule-modal-card" role="dialog" aria-modal="true" aria-labelledby="capsule-modal-title">
+      <div class="capsule-modal-header">
+        <div class="capsule-icon-large">⏳📍</div>
+        <h3 id="capsule-modal-title">Cryptographic Capsules</h3>
+        <p class="apple-modal-desc">Seal messages until a future date or until recipient arrives at a specific location.</p>
+      </div>
+
+      <div class="capsule-tab-bar">
+        <button id="capsule-tab-time" class="capsule-tab active" type="button">⏳ Time Capsule</button>
+        <button id="capsule-tab-place" class="capsule-tab" type="button">📍 Place Message</button>
+      </div>
+
+      <!-- Time Capsule Form -->
+      <div id="capsule-view-time" class="capsule-view-panel">
+        <label class="capsule-field-label">Secret Message to Seal</label>
+        <textarea id="capsule-time-text" class="apple-input capsule-textarea" rows="3" placeholder="Write a message to be unlocked in the future…"></textarea>
+
+        <label class="capsule-field-label">Attach Secret Photo (Optional)</label>
+        <input id="capsule-time-photo" type="file" accept="image/jpeg,image/png" class="capsule-file-input" />
+
+        <label class="capsule-field-label">Quick Presets</label>
+        <div class="capsule-presets-bar">
+          <button type="button" class="capsule-preset-pill" data-mins="10">10 Mins</button>
+          <button type="button" class="capsule-preset-pill active" data-mins="60">1 Hour</button>
+          <button type="button" class="capsule-preset-pill" data-mins="1440">Tomorrow</button>
+          <button type="button" class="capsule-preset-pill" data-mins="10080">1 Week</button>
+          <button type="button" class="capsule-preset-pill" data-mins="525600">1 Year</button>
+        </div>
+
+        <label class="capsule-field-label">Unlock Date & Time</label>
+        <input id="capsule-unlock-datetime" type="datetime-local" class="apple-input capsule-dt-input" />
+
+        <button id="capsule-seal-time-btn" type="button" class="btn-apple-primary btn-seal-full">🔒 Seal Time Capsule</button>
+      </div>
+
+      <!-- Place Message Form -->
+      <div id="capsule-view-place" class="capsule-view-panel" hidden>
+        <label class="capsule-field-label">Secret Message to Seal</label>
+        <textarea id="capsule-place-text" class="apple-input capsule-textarea" rows="3" placeholder="Write a message unlockable only at this place…"></textarea>
+
+        <label class="capsule-field-label">Place Name / Hint</label>
+        <input id="capsule-place-label" type="text" class="apple-input" placeholder="e.g. Central Park Fountain, Coffee Shop" />
+
+        <div class="capsule-geo-trigger-box">
+          <button id="capsule-geo-btn" type="button" class="btn-apple-secondary btn-geo-locate">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="3 11 22 2 13 21 11 13 3 11"></polygon>
+            </svg>
+            Use My Current Location
+          </button>
+          <span id="capsule-geo-status" class="capsule-geo-status">GPS location needed</span>
+        </div>
+
+        <div class="capsule-coords-row">
+          <div class="coords-col">
+            <label class="capsule-field-label">Latitude</label>
+            <input id="capsule-place-lat" type="number" step="any" class="apple-input" placeholder="e.g. 37.7749" />
+          </div>
+          <div class="coords-col">
+            <label class="capsule-field-label">Longitude</label>
+            <input id="capsule-place-lng" type="number" step="any" class="apple-input" placeholder="e.g. -122.4194" />
+          </div>
+        </div>
+
+        <label class="capsule-field-label">Unlock Radius</label>
+        <select id="capsule-place-radius" class="apple-input capsule-select">
+          <option value="30">30 meters (Same Room / Exact Spot)</option>
+          <option value="100" selected>100 meters (Same Building / Block)</option>
+          <option value="300">300 meters (Neighborhood)</option>
+          <option value="1000">1 km (District / Campus)</option>
+          <option value="5000">5 km (City Zone)</option>
+        </select>
+
+        <button id="capsule-seal-place-btn" type="button" class="btn-apple-primary btn-seal-full">🔒 Lock Message to Place</button>
+      </div>
+
+      <div class="capsule-modal-footer">
+        <button id="capsule-close-btn" type="button" class="btn-apple-cancel">Close</button>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
   <script src="config.js"></script>
   <script src="qr.min.js"></script>
   <script src="mesh.js"></script>
   <script src="games.js"></script>
-  <script src="feelings.js"></script>
+  <script src="feelings.js?v=2"></script>
+  <script src="capsules.js"></script>
   <script src="app.js?v=4.0"></script>
 </body>
 </html>

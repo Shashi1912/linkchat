@@ -147,6 +147,7 @@
     messages: $('messages'), olderBtn: $('older-btn'), status: $('status'), feed: $('feed'),
     composer: $('composer'), input: $('msg-input'), sendBtn: $('send-btn'), counter: $('counter'),
     attachBtn: $('attach-btn'), fileInput: $('file-input'),
+    attachSheet: $('attach-action-sheet'), attachPhotoItem: $('attach-photo-item'), attachCapsuleItem: $('attach-capsule-item'),
     feelBar: $('feel-bar'), feelChip: $('feel-chip'), feelMenu: $('feel-menu'),
     typingIndicator: $('typing-indicator'), typingName: $('typing-name'),
     toast: $('toast'),
@@ -641,6 +642,15 @@
         }
       } else {
         plainText = '🔒 [Encrypted Message]';
+      }
+    }
+
+    // Don't show the internal feeling tag in the notification text
+    if (window.Feelings) plainText = window.Feelings.decode(plainText).rest;
+    if (window.Capsules) {
+      var capMeta = window.Capsules.decode(plainText);
+      if (capMeta) {
+        plainText = capMeta.kind === 'time' ? '⏳ Sent a Time Capsule' : '📍 Sent a Place Message';
       }
     }
 
@@ -2412,9 +2422,10 @@
 
     extractFeeling();
 
-    // 2. Audio Voice Player vs Call Debrief vs Plain Text
+    // 2. Audio Voice Player vs Call Debrief vs Cryptographic Capsule vs Plain Text
     var audioMatch = rawContent.match(/^\[audio:(\d+):([^\]]+)\]/);
     var debriefMatch = rawContent.match(/^\[call:debrief:(.*)\]$/);
+    var capsuleMatch = window.Capsules && window.Capsules.decode(rawContent);
     if (audioMatch) {
       var durSec = parseInt(audioMatch[1], 10) || 0;
       var audioSrc = audioMatch[2];
@@ -2430,6 +2441,10 @@
       } catch (e) {
         b.append(el('div', 'text', rawContent));
       }
+    } else if (capsuleMatch) {
+      var capsuleCard = window.Capsules.renderCard(capsuleMatch, mine);
+      b.append(capsuleCard);
+      textSnippet = capsuleMatch.kind === 'time' ? '⏳ Time Capsule' : '📍 Place Message';
     } else if (rawContent) {
       b.append(el('div', 'text', rawContent));
     }
@@ -2986,7 +3001,9 @@
     ui.input.style.height = Math.min(ui.input.scrollHeight + 2, 130) + 'px';
   }
   // ---------- Feeling (sender confirms; never attached automatically) ----------
-  var feel = { chosen: null };
+  // chosen: the feeling to send. fromSuggestion: true when the sender tapped
+  // the suggestion (it follows the text); false when picked from the list (kept).
+  var feel = { chosen: null, fromSuggestion: false };
 
   function renderFeelBar() {
     if (!window.Feelings) return;
@@ -3024,6 +3041,7 @@
       if (feel.chosen && feel.chosen.key === f.key) opt.classList.add('selected');
       opt.addEventListener('click', function () {
         feel.chosen = f;
+        feel.fromSuggestion = false;
         ui.feelMenu.hidden = true;
         renderFeelBar();
       });
@@ -3036,14 +3054,22 @@
     var sug = window.Feelings && window.Feelings.suggest(ui.input.value);
     if (!feel.chosen && sug) {
       feel.chosen = sug;   // the sender tapped the suggestion: confirmed
+      feel.fromSuggestion = true;
       renderFeelBar();
       return;
     }
     if (ui.feelMenu.hidden) openFeelMenu(); else ui.feelMenu.hidden = true;
   });
 
+  // Tapping anywhere else closes the feeling list
+  document.addEventListener('click', function (e) {
+    if (!ui.feelMenu.hidden && !ui.feelBar.contains(e.target)) ui.feelMenu.hidden = true;
+  });
+
   ui.input.addEventListener('input', function () {
     updateComposer();
+    // Typing changes the text, so a suggestion the sender confirmed no longer applies
+    if (feel.fromSuggestion) { feel.chosen = null; feel.fromSuggestion = false; }
     renderFeelBar();
     if (ui.input.value.trim().length > 0) {
       sendTypingSignal();
@@ -3132,9 +3158,35 @@
   }
 
   var isChoosingFile = false;
-  ui.attachBtn.addEventListener('click', function () {
-    isChoosingFile = true;
-    ui.fileInput.click();
+  ui.attachBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    if (ui.attachSheet) {
+      ui.attachSheet.hidden = !ui.attachSheet.hidden;
+    } else {
+      isChoosingFile = true;
+      ui.fileInput.click();
+    }
+  });
+
+  if (ui.attachPhotoItem) {
+    ui.attachPhotoItem.addEventListener('click', function () {
+      if (ui.attachSheet) ui.attachSheet.hidden = true;
+      isChoosingFile = true;
+      ui.fileInput.click();
+    });
+  }
+
+  if (ui.attachCapsuleItem) {
+    ui.attachCapsuleItem.addEventListener('click', function () {
+      if (ui.attachSheet) ui.attachSheet.hidden = true;
+      if (window.Capsules) window.Capsules.openModal('time');
+    });
+  }
+
+  document.addEventListener('click', function (e) {
+    if (ui.attachSheet && !ui.attachSheet.hidden && !ui.attachSheet.contains(e.target) && e.target !== ui.attachBtn) {
+      ui.attachSheet.hidden = true;
+    }
   });
 
   ui.fileInput.addEventListener('change', async function () {
