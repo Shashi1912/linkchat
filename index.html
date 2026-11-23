@@ -686,6 +686,11 @@
         <button id="reply-cancel-btn" type="button" class="btn-reply-cancel" title="Cancel reply" aria-label="Cancel reply">✕</button>
       </div>
 
+      <!-- Feeling suggestion: shown only when the wording suggests one; sender confirms -->
+      <div id="feel-bar" class="feel-bar" hidden>
+        <button id="feel-chip" type="button" class="feel-chip"></button>
+        <div id="feel-menu" class="feel-menu" role="listbox" aria-label="Choose a feeling" hidden></div>
+      </div>
       <form id="composer" class="composer-apple" novalidate>
         <!-- Apple Attachment (+) Button -->
         <button id="attach-btn" class="apple-attach-btn" type="button" title="Attach photo" aria-label="Attach photo">
@@ -966,6 +971,7 @@
   <script src="qr.min.js"></script>
   <script src="mesh.js"></script>
   <script src="games.js"></script>
+  <script src="feelings.js"></script>
   <script src="app.js?v=4.0"></script>
 </body>
 </html>

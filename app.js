@@ -147,6 +147,7 @@
     messages: $('messages'), olderBtn: $('older-btn'), status: $('status'), feed: $('feed'),
     composer: $('composer'), input: $('msg-input'), sendBtn: $('send-btn'), counter: $('counter'),
     attachBtn: $('attach-btn'), fileInput: $('file-input'),
+    feelBar: $('feel-bar'), feelChip: $('feel-chip'), feelMenu: $('feel-menu'),
     typingIndicator: $('typing-indicator'), typingName: $('typing-name'),
     toast: $('toast'),
   };
@@ -2382,7 +2383,20 @@
     var rawContent = m.content || '';
     var textSnippet = rawContent;
 
-    // 1. Quoted Reply Box (iMessage Style)
+    // 1. Quoted Reply Box & Feelings
+    function extractFeeling() {
+      if (!window.Feelings) return;
+      var feelInfo = window.Feelings.decode(rawContent);
+      if (feelInfo.feeling) {
+        var feelTag = el('div', 'feel-tag', feelInfo.feeling.emoji + ' ' + feelInfo.feeling.label);
+        b.append(feelTag);
+        rawContent = feelInfo.rest;
+        textSnippet = rawContent;
+      }
+    }
+
+    extractFeeling();
+
     var replyMatch = rawContent.match(/^\[reply:([^:]+):([^\]]+)\]/);
     if (replyMatch) {
       try {
@@ -2395,6 +2409,8 @@
         textSnippet = rawContent;
       } catch (e) {}
     }
+
+    extractFeeling();
 
     // 2. Audio Voice Player vs Call Debrief vs Plain Text
     var audioMatch = rawContent.match(/^\[audio:(\d+):([^\]]+)\]/);
@@ -2969,8 +2985,66 @@
     ui.input.style.height = 'auto';
     ui.input.style.height = Math.min(ui.input.scrollHeight + 2, 130) + 'px';
   }
+  // ---------- Feeling (sender confirms; never attached automatically) ----------
+  var feel = { chosen: null };
+
+  function renderFeelBar() {
+    if (!window.Feelings) return;
+    var text = ui.input.value.trim();
+    if (text.length < 3) {
+      feel.chosen = null;
+      ui.feelBar.hidden = true;
+      ui.feelMenu.hidden = true;
+      return;
+    }
+    ui.feelBar.hidden = false;
+    var sug = window.Feelings.suggest(text);
+    if (feel.chosen) {
+      ui.feelChip.textContent = 'Feeling: ' + feel.chosen.emoji + ' ' + feel.chosen.label + ' · change';
+    } else if (sug) {
+      ui.feelChip.textContent = 'Sounds ' + sug.label.toLowerCase() + ' ' + sug.emoji + ' · tap to add';
+    } else {
+      ui.feelChip.textContent = '+ Add a feeling';
+    }
+  }
+
+  function openFeelMenu() {
+    ui.feelMenu.replaceChildren();
+    var none = el('button', 'feel-option', 'No feeling');
+    none.type = 'button';
+    none.addEventListener('click', function () {
+      feel.chosen = null;
+      ui.feelMenu.hidden = true;
+      renderFeelBar();
+    });
+    ui.feelMenu.append(none);
+    window.Feelings.LIST.forEach(function (f) {
+      var opt = el('button', 'feel-option', f.emoji + ' ' + f.label);
+      opt.type = 'button';
+      if (feel.chosen && feel.chosen.key === f.key) opt.classList.add('selected');
+      opt.addEventListener('click', function () {
+        feel.chosen = f;
+        ui.feelMenu.hidden = true;
+        renderFeelBar();
+      });
+      ui.feelMenu.append(opt);
+    });
+    ui.feelMenu.hidden = false;
+  }
+
+  ui.feelChip.addEventListener('click', function () {
+    var sug = window.Feelings && window.Feelings.suggest(ui.input.value);
+    if (!feel.chosen && sug) {
+      feel.chosen = sug;   // the sender tapped the suggestion: confirmed
+      renderFeelBar();
+      return;
+    }
+    if (ui.feelMenu.hidden) openFeelMenu(); else ui.feelMenu.hidden = true;
+  });
+
   ui.input.addEventListener('input', function () {
     updateComposer();
+    renderFeelBar();
     if (ui.input.value.trim().length > 0) {
       sendTypingSignal();
     } else {
@@ -3011,6 +3085,11 @@
       clearReplyingTo();
     }
 
+    if (feel.chosen && window.Feelings) {
+      text = window.Feelings.encode(feel.chosen.key) + text;  // goes after any [reply:] tag
+    }
+    feel.chosen = null;
+
     var m = {
       id: uuid(), user_id: state.user.id, display_name: state.name, content: text,
       raw: null, ts: Date.now(), status: 'sending', seq: ++state.seq,
@@ -3018,6 +3097,7 @@
     state.msgs.set(m.id, m);
     ui.input.value = '';
     updateComposer();
+    renderFeelBar();
     render('bottom');
     playSendSound();
     insert(m);
