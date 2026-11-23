@@ -3580,6 +3580,7 @@
     state.roomDisplayName = data.room_name || roomId;
     state.roomKey = key; // In-memory only — never written to disk or localStorage!
     markRoomAsRead(roomId);
+    addLocalUserRoom({ id: roomId, name: state.roomDisplayName, created_at: new Date().toISOString() });
 
     // Security: Immediately scrub secret key from URL so it is never exposed in address bar or history
     try {
@@ -3656,6 +3657,7 @@
         state.room = roomId;
         state.roomDisplayName = roomName;
         state.roomKey = key; // In-memory only!
+        addLocalUserRoom({ id: roomId, name: roomName, created_at: new Date().toISOString() });
         if (ui.newRoomKey) ui.newRoomKey.value = '';
         enterChat();
       } catch (err) {
@@ -3839,31 +3841,74 @@
       showRoomPicker();
     }
 
+    removeLocalUserRoom(roomId);
     toast('Room deleted successfully.');
     closeDeleteRoomModal();
     selectDropdownRoom(null, 'No room selected', true);
     loadRoomsList();
   }
 
+  // Local unlocked rooms cache per display name
+  function getUserUnlockedRoomsKey() {
+    var uname = (state.name || '').trim().toLowerCase();
+    return 'linkchat.unlocked_rooms_' + encodeURIComponent(uname);
+  }
+
+  function getLocalUserRooms() {
+    try {
+      var key = getUserUnlockedRoomsKey();
+      return JSON.parse(load(key) || '[]');
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function addLocalUserRoom(roomObj) {
+    if (!roomObj || !roomObj.id) return;
+    try {
+      var rooms = getLocalUserRooms();
+      if (!rooms.some(function (r) { return r.id === roomObj.id; })) {
+        rooms.unshift(roomObj);
+        store(getUserUnlockedRoomsKey(), JSON.stringify(rooms));
+      }
+    } catch (e) {}
+  }
+
+  function removeLocalUserRoom(roomId) {
+    try {
+      var rooms = getLocalUserRooms().filter(function (r) { return r.id !== roomId; });
+      store(getUserUnlockedRoomsKey(), JSON.stringify(rooms));
+    } catch (e) {}
+  }
+
   async function loadRoomsList() {
     var tilesContainer = $('rooms-list-container');
     var dropList = $('dropdown-items-list');
-    if (tilesContainer) tilesContainer.innerHTML = '<div class="rooms-loading">Loading active rooms…</div>';
-    if (dropList) dropList.innerHTML = '<div class="rooms-loading">Loading rooms…</div>';
+    if (tilesContainer) tilesContainer.innerHTML = '<div class="rooms-loading">Loading your rooms…</div>';
+    if (dropList) dropList.innerHTML = '<div class="rooms-loading">Loading your rooms…</div>';
 
     var rooms = [];
     unreadCountsByRoom = {};
 
-    try {
-      var res = await sb.rpc('my_rooms');
-      if (!res.error && res.data) {
-        rooms = res.data;
-      } else {
-        var fallback = await sb.from('rooms').select('id, name, created_at').order('created_at', { ascending: false });
-        if (!fallback.error && fallback.data) rooms = fallback.data;
+    if (sb && state.user) {
+      try {
+        var res = await sb.rpc('my_rooms');
+        if (!res.error && Array.isArray(res.data)) {
+          rooms = res.data;
+        }
+      } catch (e) {
+        console.warn('Could not load member rooms from server:', e);
       }
-    } catch (e) {
-      console.warn('Could not load rooms:', e);
+    }
+
+    // Merge with rooms unlocked specifically by this user name on this device
+    var localRooms = getLocalUserRooms();
+    if (localRooms && localRooms.length) {
+      localRooms.forEach(function (lr) {
+        if (!rooms.some(function (r) { return r.id === lr.id; })) {
+          rooms.push(lr);
+        }
+      });
     }
 
     try {
@@ -4491,17 +4536,27 @@
 
   var changeNameBtn = $('change-name-btn');
   if (changeNameBtn) {
-    changeNameBtn.addEventListener('click', function () {
+    changeNameBtn.addEventListener('click', async function () {
       store(NAME_KEY, null);
+      store(ROOM_KEY, null);
+      store(ROOM_NAME_KEY, null);
+      store(ROOM_KEY_PASS, null);
       state.name = '';
+      try { await sb.auth.signOut(); } catch (e) {}
+      state.user = null;
       showJoin('');
     });
   }
 
   if (ui.roomBackBtn) {
-    ui.roomBackBtn.addEventListener('click', function () {
+    ui.roomBackBtn.addEventListener('click', async function () {
       store(NAME_KEY, null);
+      store(ROOM_KEY, null);
+      store(ROOM_NAME_KEY, null);
+      store(ROOM_KEY_PASS, null);
       state.name = '';
+      try { await sb.auth.signOut(); } catch (e) {}
+      state.user = null;
       showJoin('');
     });
   }
@@ -4710,8 +4765,19 @@
     try {
       getAudioContext();
 
+      var prevName = load(NAME_KEY);
+      var isDifferentUser = !prevName || (prevName.trim().toLowerCase() !== name.toLowerCase());
+
       var got = await sb.auth.getSession();
       var session = got.data && got.data.session;
+
+      // When signing in with a different name or starting fresh, purge previous session
+      // so other users' rooms and credentials are not inherited!
+      if (isDifferentUser && session) {
+        try { await sb.auth.signOut(); } catch (e) {}
+        session = null;
+      }
+
       if (!session) {
         var res = await sb.auth.signInAnonymously();
         if (res.error) throw res.error;
@@ -4750,6 +4816,8 @@
     store(ROOM_NAME_KEY, null);
     store(ROOM_KEY_PASS, null);
     ui.onlineList.hidden = true;
+    try { await sb.auth.signOut(); } catch (e) {}
+    state.user = null;
     showJoin('');
   });
 
