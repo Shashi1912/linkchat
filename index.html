@@ -371,6 +371,10 @@
               <span class="dot"></span><span id="online-count">0 online</span>
             </button>
             <span id="conn" class="conn" hidden>Connecting…</span>
+            <button id="mesh-pill" class="mesh-pill" type="button" title="Serverless Offline Mesh Network status" aria-label="Mesh network status">
+              <span class="mesh-pulse-dot"></span>
+              <span id="mesh-status-text">Mesh: Ready</span>
+            </button>
           </div>
         </div>
       </div>
@@ -435,6 +439,22 @@
           </svg>
         </button>
 
+        <!-- Offline Mesh P2P Button -->
+        <button id="mesh-btn" class="apple-icon-btn" type="button" title="Offline Mesh Network (Zero Internet)" aria-label="Offline Mesh Network">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="2" y1="12" x2="22" y2="12"></line>
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+          </svg>
+        </button>
+
+        <!-- AI Swarm Button -->
+        <button id="ai-btn" class="apple-icon-btn" type="button" title="Multi-Agent AI Swarm & Consensus" aria-label="AI Swarm">
+          <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+          </svg>
+        </button>
+
         <!-- Switch Room Button -->
         <button id="rooms-btn" class="apple-icon-btn" type="button" title="Switch room" aria-label="Switch room" hidden>
           <svg viewBox="0 0 24 24" width="19" height="19" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
@@ -482,6 +502,27 @@
       <!-- Apple Glass Action Sheet Popover Menu for Mobile -->
       <div id="header-more-menu" class="apple-header-menu" hidden role="menu" aria-label="More options">
         <div class="header-menu-card">
+          <button id="menu-mesh-btn" class="menu-item" type="button" role="menuitem">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <circle cx="12" cy="12" r="10"></circle>
+              <line x1="2" y1="12" x2="22" y2="12"></line>
+              <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+            </svg>
+            <span>Offline Mesh P2P</span>
+          </button>
+          <button id="menu-ai-btn" class="menu-item" type="button" role="menuitem">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+            </svg>
+            <span>AI Swarm & Polls</span>
+          </button>
+          <button id="menu-arena-btn" class="menu-item" type="button" role="menuitem">
+            <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+              <rect x="2" y="6" width="20" height="12" rx="3"></rect>
+              <path d="M6 12h4m-2-2v4m10-2h.01m-3 0h.01"></path>
+            </svg>
+            <span>Gaming Arena (60FPS)</span>
+          </button>
           <button id="menu-copy-btn" class="menu-item" type="button" role="menuitem">
             <svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
               <circle cx="18" cy="5" r="3"></circle>
@@ -761,9 +802,175 @@
     </div>
   </div>
 
+  <!-- Offline Mesh Network Modal (Zero-Internet P2P) -->
+  <div id="mesh-modal" class="apple-modal-scrim" hidden>
+    <div class="apple-modal-card mesh-card" role="dialog" aria-modal="true" aria-labelledby="mesh-modal-title">
+      <div class="mesh-modal-header">
+        <div class="apple-modal-icon-wrap mesh-icon-wrap">
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <circle cx="12" cy="12" r="10"></circle>
+            <line x1="2" y1="12" x2="22" y2="12"></line>
+            <path d="M12 2a15.3 15.3 0 0 1 4 10 15.3 15.3 0 0 1-4 10 15.3 15.3 0 0 1-4-10 15.3 15.3 0 0 1 4-10z"></path>
+          </svg>
+        </div>
+        <h3 id="mesh-modal-title">Offline Mesh Network</h3>
+        <p class="apple-modal-desc">Direct device-to-device communication with <strong>zero cloud servers and zero cellular data</strong>.</p>
+      </div>
+
+      <!-- Segmented Control for Mode: My QR vs Scan Peer -->
+      <div class="mesh-segmented-control" role="tablist">
+        <button id="mesh-tab-qr" class="mesh-tab active" type="button" role="tab" aria-selected="true">My Device QR</button>
+        <button id="mesh-tab-scan" class="mesh-tab" type="button" role="tab" aria-selected="false">Scan Peer</button>
+        <button id="mesh-tab-manual" class="mesh-tab" type="button" role="tab" aria-selected="false">Manual Key</button>
+      </div>
+
+      <!-- View 1: My Device QR (AirDrop Style) -->
+      <div id="mesh-view-qr" class="mesh-view-panel">
+        <div id="mesh-qr-target" class="qr-container"></div>
+        <p class="mesh-step-hint">Show this QR to a nearby device to establish direct WebRTC DataChannel.</p>
+        <button id="mesh-copy-offer-btn" type="button" class="btn-apple-secondary" style="margin-top: 6px;">Copy Offer Code</button>
+      </div>
+
+      <!-- View 2: Scan Peer Camera -->
+      <div id="mesh-view-scan" class="mesh-view-panel" hidden>
+        <div class="mesh-camera-wrap">
+          <video id="mesh-camera-feed" playsinline autoplay muted></video>
+          <canvas id="mesh-camera-canvas" hidden></canvas>
+          <div class="mesh-scanner-overlay">
+            <div class="mesh-scan-reticle"></div>
+          </div>
+        </div>
+        <p id="mesh-scan-status-text" class="mesh-step-hint">Point camera at peer device's LinkChat QR code.</p>
+        <button id="mesh-toggle-camera-btn" type="button" class="btn-apple-secondary">Start Camera</button>
+      </div>
+
+      <!-- View 3: Manual Key Paste -->
+      <div id="mesh-view-manual" class="mesh-view-panel" hidden>
+        <textarea id="mesh-manual-input" class="mesh-code-input" placeholder="Paste peer's handshake SDP code here..." rows="3"></textarea>
+        <button id="mesh-connect-manual-btn" type="button" class="btn-apple-primary" style="width: 100%; margin-top: 8px;">Connect to Peer</button>
+      </div>
+
+      <!-- Live Mesh Stats -->
+      <div class="mesh-stats-bar">
+        <div class="mesh-stat-item">
+          <span class="mesh-stat-label">Mesh Peers</span>
+          <strong id="mesh-peers-count" class="mesh-stat-val">0 Connected</strong>
+        </div>
+        <div class="mesh-stat-item">
+          <span class="mesh-stat-label">Routing</span>
+          <strong id="mesh-routing-mode" class="mesh-stat-val">Direct P2P</strong>
+        </div>
+        <div class="mesh-stat-item">
+          <span class="mesh-stat-label">Cipher</span>
+          <strong class="mesh-stat-val">DTLS / SRTP</strong>
+        </div>
+      </div>
+
+      <div class="apple-modal-actions" style="margin-top: 14px;">
+        <button id="mesh-close-btn" type="button" class="btn-apple-cancel">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Multi-Agent Personal AI Swarm Modal -->
+  <div id="ai-modal" class="apple-modal-scrim" hidden>
+    <div class="apple-modal-card ai-card" role="dialog" aria-modal="true" aria-labelledby="ai-modal-title">
+      <div class="ai-modal-header">
+        <div class="apple-modal-icon-wrap ai-icon-wrap">
+          <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+            <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2"></polygon>
+          </svg>
+        </div>
+        <h3 id="ai-modal-title">Personal AI Swarm</h3>
+        <p class="apple-modal-desc">Multi-agent co-presence: room summaries, consensus polls, decision matrix & debate.</p>
+      </div>
+
+      <!-- Quick Action Cards Grid -->
+      <div class="ai-quick-grid" id="ai-quick-grid">
+        <button id="ai-quick-summary-btn" type="button" class="ai-quick-action-btn">
+          <div class="ai-action-icon">📝</div>
+          <div class="ai-action-text">
+            <strong>Room Catch-Up</strong>
+            <span>Distill key topics & action items</span>
+          </div>
+        </button>
+
+        <button id="ai-quick-poll-btn" type="button" class="ai-quick-action-btn">
+          <div class="ai-action-icon">📊</div>
+          <div class="ai-action-text">
+            <strong>Consensus Poll</strong>
+            <span>Create live voting for group choices</span>
+          </div>
+        </button>
+
+        <button id="ai-quick-decide-btn" type="button" class="ai-quick-action-btn">
+          <div class="ai-action-icon">⚖️</div>
+          <div class="ai-action-text">
+            <strong>Decision Matrix</strong>
+            <span>Multi-criteria weighted scoring</span>
+          </div>
+        </button>
+
+        <button id="ai-quick-debate-btn" type="button" class="ai-quick-action-btn">
+          <div class="ai-action-icon">💡</div>
+          <div class="ai-action-text">
+            <strong>3-Agent Swarm</strong>
+            <span>Visionary vs Pragmatist vs Critic</span>
+          </div>
+        </button>
+      </div>
+
+      <!-- Dynamic Form Area -->
+      <div id="ai-form-area" class="ai-form-area" hidden>
+        <div id="ai-form-desc" class="ai-form-desc" style="font-size:13px; margin-bottom:8px; opacity:0.9;"></div>
+        <div class="input-group" style="margin-bottom: 8px;">
+          <input id="ai-custom-prompt" type="text" placeholder="Type topic or question..." />
+        </div>
+        <div id="ai-poll-options-wrap" class="input-group" style="margin-bottom: 8px;" hidden>
+          <input id="ai-poll-opts-input" type="text" placeholder="Option 1 | Option 2 | Option 3" />
+        </div>
+        <div class="apple-modal-actions" style="margin-top: 6px;">
+          <button id="ai-execute-btn" type="button" class="btn-apple-primary" style="width: 100%;">Post to Room</button>
+          <button id="ai-form-cancel-btn" type="button" class="btn-apple-cancel">Back</button>
+        </div>
+      </div>
+
+      <div class="apple-modal-actions" id="ai-main-actions" style="margin-top: 14px;">
+        <button id="ai-close-btn" type="button" class="btn-apple-cancel">Close</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Gaming Arena Modal (Zero-Download 60FPS) -->
+  <div id="arena-modal" class="apple-modal-scrim" hidden>
+    <div class="apple-modal-card arena-card" role="dialog" aria-modal="true" aria-labelledby="arena-modal-title">
+      <div class="arena-modal-header">
+        <h3 id="arena-modal-title">Multiplayer Gaming Arena</h3>
+        <p class="apple-modal-desc">60FPS client-side physics running over WebRTC DataChannels</p>
+      </div>
+      <div class="arena-tab-bar">
+        <button id="arena-tab-hockey" class="arena-tab active" type="button">🏒 Neon Air Hockey</button>
+        <button id="arena-tab-chess" class="arena-tab" type="button">♟️ Glass Chess</button>
+        <button id="arena-tab-snake" class="arena-tab" type="button">🐍 Snake Royale</button>
+      </div>
+      <div class="arena-viewport">
+        <canvas id="arena-canvas" width="580" height="360" class="arena-canvas"></canvas>
+        <div id="chess-board-wrap" class="chess-board-wrap" hidden></div>
+      </div>
+      <div class="arena-controls-bar">
+        <button id="arena-restart-btn" type="button" class="btn-apple-secondary">New Game</button>
+        <button id="arena-invite-btn" type="button" class="btn-apple-primary">Share Invite in Chat</button>
+        <button id="arena-close-btn" type="button" class="btn-apple-cancel">Close</button>
+      </div>
+    </div>
+  </div>
+
   <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
   <script src="config.js"></script>
   <script src="qr.min.js"></script>
-  <script src="app.js?v=3.11"></script>
+  <script src="mesh.js"></script>
+  <script src="games.js"></script>
+  <script src="ai.js"></script>
+  <script src="app.js?v=4.0"></script>
 </body>
 </html>

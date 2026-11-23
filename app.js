@@ -92,6 +92,25 @@
     // QR Code Modal
     qrBtn: $('qr-btn'), qrModal: $('qr-modal'), qrContainer: $('qr-container'),
     qrRoomName: $('qr-room-name'), qrRoomId: $('qr-room-id'), qrCopyBtn: $('qr-copy-btn'), qrCloseBtn: $('qr-close-btn'),
+    // Mesh Network & AI Swarm & Arena
+    meshBtn: $('mesh-btn'), aiBtn: $('ai-btn'),
+    menuMeshBtn: $('menu-mesh-btn'), menuAiBtn: $('menu-ai-btn'), menuArenaBtn: $('menu-arena-btn'),
+    meshPill: $('mesh-pill'), meshStatusText: $('mesh-status-text'),
+    meshModal: $('mesh-modal'), meshTabQr: $('mesh-tab-qr'), meshTabScan: $('mesh-tab-scan'), meshTabManual: $('mesh-tab-manual'),
+    meshViewQr: $('mesh-view-qr'), meshViewScan: $('mesh-view-scan'), meshViewManual: $('mesh-view-manual'),
+    meshQrTarget: $('mesh-qr-target'), meshCopyOfferBtn: $('mesh-copy-offer-btn'),
+    meshCameraFeed: $('mesh-camera-feed'), meshCameraCanvas: $('mesh-camera-canvas'),
+    meshScanStatusText: $('mesh-scan-status-text'), meshToggleCameraBtn: $('mesh-toggle-camera-btn'),
+    meshManualInput: $('mesh-manual-input'), meshConnectManualBtn: $('mesh-connect-manual-btn'),
+    meshPeersCount: $('mesh-peers-count'), meshCloseBtn: $('mesh-close-btn'),
+    aiModal: $('ai-modal'), aiQuickGrid: $('ai-quick-grid'),
+    aiQuickSummaryBtn: $('ai-quick-summary-btn'), aiQuickPollBtn: $('ai-quick-poll-btn'),
+    aiQuickDecideBtn: $('ai-quick-decide-btn'), aiQuickDebateBtn: $('ai-quick-debate-btn'),
+    aiFormArea: $('ai-form-area'), aiFormDesc: $('ai-form-desc'), aiCustomPrompt: $('ai-custom-prompt'),
+    aiPollOptionsWrap: $('ai-poll-options-wrap'), aiPollOptsInput: $('ai-poll-opts-input'),
+    aiExecuteBtn: $('ai-execute-btn'), aiFormCancelBtn: $('ai-form-cancel-btn'), aiCloseBtn: $('ai-close-btn'),
+    arenaModal: $('arena-modal'), arenaTabHockey: $('arena-tab-hockey'), arenaTabChess: $('arena-tab-chess'), arenaTabSnake: $('arena-tab-snake'),
+    arenaCanvas: $('arena-canvas'), chessBoardWrap: $('chess-board-wrap'), arenaRestartBtn: $('arena-restart-btn'), arenaInviteBtn: $('arena-invite-btn'), arenaCloseBtn: $('arena-close-btn'),
     // Video Call PIP
     callVideoBtn: $('call-video-btn'), callVideoIcon: $('call-video-icon'), callScreenBtn: $('call-screen-btn'),
     callVideoContainer: $('call-video-container'), remoteVideo: $('remote-video'), localVideo: $('local-video'), videoPipCloseBtn: $('video-pip-close-btn'),
@@ -2073,6 +2092,20 @@
       var audioPlayer = buildVoicePlayer(audioSrc, durSec, mine);
       b.append(audioPlayer);
       textSnippet = 'Voice note (' + durSec + 's)';
+    } else if (rawContent.startsWith('[ai:')) {
+      var aiMatch = rawContent.match(/^\[ai:([a-z]+):(.*)\]$/);
+      if (aiMatch) {
+        try {
+          var cardPayload = JSON.parse(decodeURIComponent(aiMatch[2]));
+          var aiCard = buildAiCardElement(cardPayload);
+          b.append(aiCard);
+          textSnippet = '✨ AI ' + (cardPayload.title || 'Swarm');
+        } catch (e) {
+          b.append(el('div', 'text', rawContent));
+        }
+      } else {
+        b.append(el('div', 'text', rawContent));
+      }
     } else if (rawContent) {
       b.append(el('div', 'text', rawContent));
     }
@@ -2113,6 +2146,28 @@
 
     row.append(b);
     return row;
+  }
+
+  function buildAiCardElement(card) {
+    var cardDiv = el('div', 'ai-glass-card');
+    var header = el('div', 'ai-glass-header');
+    var title = el('div', 'ai-glass-title', card.title || '✨ LinkChat AI Swarm');
+    var badge = el('span', 'ai-badge', card.type ? card.type.toUpperCase() : 'AI');
+    header.append(title, badge);
+    cardDiv.append(header);
+
+    if (card.subtitle) {
+      var sub = el('div', null, card.subtitle);
+      sub.style.fontSize = '11.5px';
+      sub.style.opacity = '0.75';
+      sub.style.marginBottom = '8px';
+      cardDiv.append(sub);
+    }
+
+    var body = el('div');
+    body.innerHTML = card.html || '';
+    cardDiv.append(body);
+    return cardDiv;
   }
 
   // ---------- Message Queries ----------
@@ -2648,6 +2703,39 @@
     render('bottom');
     playSendSound();
     insert(m);
+
+    // AI Swarm Command Interception
+    if (window.AISwarm && window.AISwarm.isCommand(text)) {
+      var hist = Array.from(state.msgs.values());
+      window.AISwarm.handleCommand(text, { messages: hist, sender: state.name }).then(function (card) {
+        if (!card) return;
+        var encoded = '[ai:' + card.type + ':' + encodeURIComponent(JSON.stringify(card)) + ']';
+        var aiMsg = {
+          id: uuid(),
+          user_id: 'ai-swarm-node',
+          display_name: '🧠 AI Swarm',
+          content: encoded,
+          raw: null,
+          ts: Date.now() + 100,
+          status: 'sent',
+          seq: ++state.seq
+        };
+        state.msgs.set(aiMsg.id, aiMsg);
+        render('bottom');
+        playMessageSound();
+
+        if (window.MeshManager) {
+          window.MeshManager.broadcast({
+            type: 'chat_message',
+            id: aiMsg.id,
+            user_id: aiMsg.user_id,
+            display_name: aiMsg.display_name,
+            content: aiMsg.content,
+            ts: aiMsg.ts
+          });
+        }
+      });
+    }
   });
 
   // ---------- Photos ----------
@@ -2719,6 +2807,28 @@
     m.status = 'sending';
     m.error = null;
     render('auto');
+
+    // Broadcast across Serverless Offline Mesh Network (Zero-Internet)
+    if (window.MeshManager) {
+      window.MeshManager.broadcast({
+        type: 'chat_message',
+        id: m.id,
+        room_id: state.room,
+        user_id: m.user_id,
+        display_name: m.display_name,
+        content: m.content,
+        ts: m.ts || Date.now()
+      });
+    }
+
+    // In 100% Airplane Mode / Offline without Internet
+    if (!navigator.onLine) {
+      m.status = 'sent';
+      render('auto');
+      toast('Sent via Offline Mesh Network ⚡');
+      return;
+    }
+
     try {
       if (m.blob && !m.uploaded) await uploadPhoto(m);
 
@@ -3783,6 +3893,311 @@
     });
   }
 
+  // =========================================================================
+  // LINKCHAT v4.0 — FEATURE 1: SERVERLESS OFFLINE MESH NETWORK
+  // =========================================================================
+  var meshOfferCode = null;
+
+  async function openMeshModal() {
+    if (!ui.meshModal) return;
+    ui.meshModal.hidden = false;
+    await switchMeshTab('qr');
+    updateMeshPeersUI();
+  }
+
+  function closeMeshModal() {
+    if (!ui.meshModal) return;
+    ui.meshModal.hidden = true;
+    if (window.MeshManager) {
+      window.MeshManager.stopQRScanner();
+    }
+  }
+
+  function updateMeshPeersUI() {
+    var count = window.MeshManager ? window.MeshManager.getConnectedCount() : 0;
+    if (ui.meshPeersCount) ui.meshPeersCount.textContent = count + ' Connected';
+    if (ui.meshStatusText) {
+      ui.meshStatusText.textContent = count > 0 ? ('Mesh: ' + count + ' P2P') : 'Mesh: Ready';
+    }
+  }
+
+  async function switchMeshTab(tab) {
+    if (ui.meshTabQr) ui.meshTabQr.classList.toggle('active', tab === 'qr');
+    if (ui.meshTabScan) ui.meshTabScan.classList.toggle('active', tab === 'scan');
+    if (ui.meshTabManual) ui.meshTabManual.classList.toggle('active', tab === 'manual');
+
+    if (ui.meshViewQr) ui.meshViewQr.hidden = tab !== 'qr';
+    if (ui.meshViewScan) ui.meshViewScan.hidden = tab !== 'scan';
+    if (ui.meshViewManual) ui.meshViewManual.hidden = tab !== 'manual';
+
+    if (tab === 'qr') {
+      if (window.MeshManager) window.MeshManager.stopQRScanner();
+      await generateMyMeshQR();
+    } else if (tab === 'scan') {
+      startMeshCameraScan();
+    } else {
+      if (window.MeshManager) window.MeshManager.stopQRScanner();
+    }
+  }
+
+  async function generateMyMeshQR() {
+    if (!window.MeshManager || !ui.meshQrTarget || typeof qrcode !== 'function') return;
+    ui.meshQrTarget.innerHTML = '<div style="padding:24px; font-size:12.5px; opacity:0.75;">Generating P2P Optical Offer SDP…</div>';
+    try {
+      meshOfferCode = await window.MeshManager.createOfferPairing();
+      var qr = qrcode(0, 'M');
+      qr.addData('mesh:' + meshOfferCode);
+      qr.make();
+      ui.meshQrTarget.innerHTML = qr.createSvgTag(5, 4);
+    } catch (e) {
+      ui.meshQrTarget.innerHTML = '<div style="padding:16px; font-size:12px; color:var(--apple-red);">SDP Generation note: ' + escapeHtml(e.message) + '</div>';
+    }
+  }
+
+  async function startMeshCameraScan() {
+    if (!window.MeshManager || !ui.meshCameraFeed) return;
+    try {
+      if (ui.meshScanStatusText) ui.meshScanStatusText.textContent = 'Point camera at peer device’s LinkChat QR…';
+      await window.MeshManager.startQRScanner(ui.meshCameraFeed, async function (scannedCode) {
+        if (!scannedCode) return;
+        playSendSound();
+        toast('Peer QR detected! Establishing direct P2P DataChannel…');
+        var payload = scannedCode.replace(/^mesh:/, '');
+        try {
+          await window.MeshManager.createAnswerPairing(payload);
+          toast('P2P Mesh Handshake complete! ⚡');
+          updateMeshPeersUI();
+          closeMeshModal();
+        } catch (err) {
+          toast('Handshake note: ' + err.message);
+        }
+      });
+    } catch (err) {
+      if (ui.meshScanStatusText) {
+        ui.meshScanStatusText.textContent = 'Camera note: ' + err.message + '. Use Manual Key tab below.';
+      }
+    }
+  }
+
+  if (ui.meshBtn) ui.meshBtn.addEventListener('click', openMeshModal);
+  if (ui.meshPill) ui.meshPill.addEventListener('click', openMeshModal);
+  if (ui.meshCloseBtn) ui.meshCloseBtn.addEventListener('click', closeMeshModal);
+
+  if (ui.meshTabQr) ui.meshTabQr.addEventListener('click', function () { switchMeshTab('qr'); });
+  if (ui.meshTabScan) ui.meshTabScan.addEventListener('click', function () { switchMeshTab('scan'); });
+  if (ui.meshTabManual) ui.meshTabManual.addEventListener('click', function () { switchMeshTab('manual'); });
+
+  if (ui.meshCopyOfferBtn) {
+    ui.meshCopyOfferBtn.addEventListener('click', async function () {
+      if (!meshOfferCode) await generateMyMeshQR();
+      if (meshOfferCode && navigator.clipboard) {
+        try {
+          await navigator.clipboard.writeText('mesh:' + meshOfferCode);
+          toast('Handshake Offer Code copied to clipboard! 📋');
+        } catch (e) {
+          toast('Copy code manually from input.');
+        }
+      }
+    });
+  }
+
+  if (ui.meshConnectManualBtn) {
+    ui.meshConnectManualBtn.addEventListener('click', async function () {
+      var val = (ui.meshManualInput && ui.meshManualInput.value || '').trim();
+      if (!val) { toast('Please paste peer handshake code.'); return; }
+      val = val.replace(/^mesh:/, '');
+      try {
+        ui.meshConnectManualBtn.disabled = true;
+        ui.meshConnectManualBtn.textContent = 'Connecting…';
+        await window.MeshManager.createAnswerPairing(val);
+        toast('Connected to peer via direct WebRTC DataChannel! ⚡');
+        updateMeshPeersUI();
+        closeMeshModal();
+      } catch (e) {
+        toast('Connection note: ' + e.message);
+      } finally {
+        ui.meshConnectManualBtn.disabled = false;
+        ui.meshConnectManualBtn.textContent = 'Connect to Peer';
+      }
+    });
+  }
+
+  if (ui.meshToggleCameraBtn) {
+    ui.meshToggleCameraBtn.addEventListener('click', function () {
+      startMeshCameraScan();
+    });
+  }
+
+  // =========================================================================
+  // LINKCHAT v4.0 — FEATURE 3: MULTI-AGENT PERSONAL AI SWARM
+  // =========================================================================
+  var currentAiAction = null;
+
+  function openAiModal() {
+    if (!ui.aiModal) return;
+    ui.aiModal.hidden = false;
+    resetAiModalView();
+  }
+
+  function closeAiModal() {
+    if (!ui.aiModal) return;
+    ui.aiModal.hidden = true;
+    resetAiModalView();
+  }
+
+  function resetAiModalView() {
+    if (ui.aiQuickGrid) ui.aiQuickGrid.hidden = false;
+    if (ui.aiFormArea) ui.aiFormArea.hidden = true;
+    if (ui.aiMainActions) ui.aiMainActions.hidden = false;
+    if (ui.aiCustomPrompt) ui.aiCustomPrompt.value = '';
+    if (ui.aiPollOptsInput) ui.aiPollOptsInput.value = '';
+    if (ui.aiPollOptionsWrap) ui.aiPollOptionsWrap.hidden = true;
+    currentAiAction = null;
+  }
+
+  function prepareAiAction(action) {
+    currentAiAction = action;
+    if (ui.aiQuickGrid) ui.aiQuickGrid.hidden = true;
+    if (ui.aiMainActions) ui.aiMainActions.hidden = true;
+    if (ui.aiFormArea) ui.aiFormArea.hidden = false;
+
+    if (action === 'summary') {
+      if (ui.aiFormDesc) ui.aiFormDesc.innerHTML = '📝 <strong>Room Catch-Up Summary:</strong> Distills recent conversation, active participants, and extracted action items.';
+      if (ui.aiCustomPrompt) ui.aiCustomPrompt.placeholder = 'Optional focus (or leave blank to summarize all recent)';
+      if (ui.aiPollOptionsWrap) ui.aiPollOptionsWrap.hidden = true;
+    } else if (action === 'poll') {
+      if (ui.aiFormDesc) ui.aiFormDesc.innerHTML = '📊 <strong>Consensus Poll:</strong> Create a live voting question with synchronized percentage bars.';
+      if (ui.aiCustomPrompt) ui.aiCustomPrompt.placeholder = 'Poll Question (e.g. When should we launch v4.0?)';
+      if (ui.aiPollOptionsWrap) ui.aiPollOptionsWrap.hidden = false;
+      if (ui.aiPollOptsInput) ui.aiPollOptsInput.placeholder = 'Option 1 | Option 2 | Option 3';
+    } else if (action === 'decide') {
+      if (ui.aiFormDesc) ui.aiFormDesc.innerHTML = '⚖️ <strong>Decision Matrix:</strong> Evaluates options against weighted velocity, UX, and risk criteria.';
+      if (ui.aiCustomPrompt) ui.aiCustomPrompt.placeholder = 'Option A vs Option B vs Option C';
+      if (ui.aiPollOptionsWrap) ui.aiPollOptionsWrap.hidden = true;
+    } else if (action === 'debate') {
+      if (ui.aiFormDesc) ui.aiFormDesc.innerHTML = '💡 <strong>3-Agent Swarm:</strong> Visionary, Pragmatist, and Devil’s Advocate synthesize perspectives on any topic.';
+      if (ui.aiCustomPrompt) ui.aiCustomPrompt.placeholder = 'Topic or dilemma to brainstorm...';
+      if (ui.aiPollOptionsWrap) ui.aiPollOptionsWrap.hidden = true;
+    }
+  }
+
+  async function executeAiAction() {
+    if (!window.AISwarm) return;
+    var prompt = ui.aiCustomPrompt ? ui.aiCustomPrompt.value.trim() : '';
+    var card = null;
+
+    if (currentAiAction === 'summary') {
+      card = window.AISwarm.generateSummary(Array.from(state.msgs.values()));
+    } else if (currentAiAction === 'poll') {
+      var question = prompt || 'Group Decision';
+      var optsStr = ui.aiPollOptsInput ? ui.aiPollOptsInput.value.trim() : '';
+      var fullArgs = optsStr ? (question + ' | ' + optsStr) : question;
+      card = window.AISwarm.createPollFromArgs(fullArgs, state.name || 'Host');
+    } else if (currentAiAction === 'decide') {
+      card = window.AISwarm.generateDecisionMatrix(prompt || 'Option 1 vs Option 2');
+    } else if (currentAiAction === 'debate') {
+      card = window.AISwarm.runSwarmDebate(prompt || 'How should we proceed?');
+    }
+
+    if (card) {
+      closeAiModal();
+      var encoded = '[ai:' + card.type + ':' + encodeURIComponent(JSON.stringify(card)) + ']';
+      var aiMsg = {
+        id: uuid(),
+        user_id: 'ai-swarm-node',
+        display_name: '🧠 AI Swarm',
+        content: encoded,
+        raw: null,
+        ts: Date.now(),
+        status: 'sent',
+        seq: ++state.seq
+      };
+      state.msgs.set(aiMsg.id, aiMsg);
+      render('bottom');
+      playSendSound();
+
+      if (window.MeshManager) {
+        window.MeshManager.broadcast({
+          type: 'chat_message',
+          id: aiMsg.id,
+          user_id: aiMsg.user_id,
+          display_name: aiMsg.display_name,
+          content: aiMsg.content,
+          ts: aiMsg.ts
+        });
+      }
+    }
+  }
+
+  if (ui.aiBtn) ui.aiBtn.addEventListener('click', openAiModal);
+  if (ui.aiCloseBtn) ui.aiCloseBtn.addEventListener('click', closeAiModal);
+  if (ui.aiQuickSummaryBtn) ui.aiQuickSummaryBtn.addEventListener('click', function () { prepareAiAction('summary'); });
+  if (ui.aiQuickPollBtn) ui.aiQuickPollBtn.addEventListener('click', function () { prepareAiAction('poll'); });
+  if (ui.aiQuickDecideBtn) ui.aiQuickDecideBtn.addEventListener('click', function () { prepareAiAction('decide'); });
+  if (ui.aiQuickDebateBtn) ui.aiQuickDebateBtn.addEventListener('click', function () { prepareAiAction('debate'); });
+  if (ui.aiFormCancelBtn) ui.aiFormCancelBtn.addEventListener('click', resetAiModalView);
+  if (ui.aiExecuteBtn) ui.aiExecuteBtn.addEventListener('click', executeAiAction);
+
+  // =========================================================================
+  // LINKCHAT v4.0 — FEATURE 2: IN-CHAT GAMING ARENA (LAST PRIORITY)
+  // =========================================================================
+  function openArenaModal(gameName) {
+    if (!ui.arenaModal) return;
+    ui.arenaModal.hidden = false;
+    if (window.GameArena) {
+      window.GameArena.init();
+      if (gameName) window.GameArena.switchGame(gameName);
+    }
+  }
+
+  function closeArenaModal() {
+    if (!ui.arenaModal) return;
+    ui.arenaModal.hidden = true;
+    if (window.GameArena) {
+      window.GameArena.stop();
+    }
+  }
+
+  if (ui.arenaCloseBtn) ui.arenaCloseBtn.addEventListener('click', closeArenaModal);
+  if (ui.arenaTabHockey) ui.arenaTabHockey.addEventListener('click', function () {
+    if (window.GameArena) window.GameArena.switchGame('hockey');
+  });
+  if (ui.arenaTabChess) ui.arenaTabChess.addEventListener('click', function () {
+    if (window.GameArena) window.GameArena.switchGame('chess');
+  });
+  if (ui.arenaTabSnake) ui.arenaTabSnake.addEventListener('click', function () {
+    if (window.GameArena) window.GameArena.switchGame('snake');
+  });
+  if (ui.arenaRestartBtn) ui.arenaRestartBtn.addEventListener('click', function () {
+    if (window.GameArena) window.GameArena.restart();
+  });
+  if (ui.arenaInviteBtn) ui.arenaInviteBtn.addEventListener('click', function () {
+    var inv = '🎮 Let’s play in the Gaming Arena! Tap More (...) -> Gaming Arena to duel.';
+    ui.input.value = inv;
+    closeArenaModal();
+    ui.composer.requestSubmit();
+  });
+
+  // Mobile More Menu Actions for v4 Features
+  if (ui.menuMeshBtn) {
+    ui.menuMeshBtn.addEventListener('click', function () {
+      closeHeaderMenu();
+      openMeshModal();
+    });
+  }
+  if (ui.menuAiBtn) {
+    ui.menuAiBtn.addEventListener('click', function () {
+      closeHeaderMenu();
+      openAiModal();
+    });
+  }
+  if (ui.menuArenaBtn) {
+    ui.menuArenaBtn.addEventListener('click', function () {
+      closeHeaderMenu();
+      openArenaModal('hockey');
+    });
+  }
+
   // Delete Room Confirmation Modal Form
   if (ui.deleteRoomForm) {
     ui.deleteRoomForm.addEventListener('submit', async function (e) {
@@ -4307,10 +4722,47 @@
       }
     });
 
+    // Initialize Offline Mesh Network and AI Swarm
+    if (window.MeshManager) {
+      window.MeshManager.on('chat-message', function (pkt) {
+        if (!pkt || !pkt.id || state.msgs.has(pkt.id)) return;
+        var msg = {
+          id: pkt.id,
+          user_id: pkt.user_id,
+          display_name: pkt.display_name,
+          content: pkt.content,
+          ts: pkt.ts || Date.now(),
+          status: 'sent',
+          seq: ++state.seq
+        };
+        state.msgs.set(msg.id, msg);
+        render('bottom');
+        playMessageSound();
+      });
+      window.MeshManager.on('status-change', function () {
+        updateMeshPeersUI();
+      });
+    }
+    if (window.AISwarm) {
+      window.AISwarm.init();
+    }
+
     var saved = load(NAME_KEY);
     var savedRoom = load(ROOM_KEY);
     var savedRoomName = load(ROOM_NAME_KEY);
     var savedRoomKey = load(ROOM_KEY_PASS);
+
+    // Airplane Mode Offline Boot Fallback
+    if (!navigator.onLine && saved) {
+      state.user = { id: 'offline-local-user' };
+      state.name = saved;
+      state.room = savedRoom || DEFAULT_ROOM;
+      state.roomDisplayName = savedRoomName || DEFAULT_ROOM_NAME;
+      showChat();
+      toast('Operating in 100% Offline Mesh Mode ⚡');
+      return;
+    }
+
     var got = await sb.auth.getSession();
     var session = got.data && got.data.session;
     if (session) {

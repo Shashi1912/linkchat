@@ -1436,6 +1436,9 @@ button:active, .room-btn-apple:active, .segment-tab:active {
   #delete-current-room-btn,
   #copy-btn,
   #qr-btn,
+  #mesh-btn,
+  #ai-btn,
+  #arena-btn,
   #theme-btn,
   #panic-btn,
   #leave-btn {
@@ -3040,3 +3043,434 @@ button:active, .room-btn-apple:active, .segment-tab:active {
     background: var(--apple-surface-solid) !important;
   }
 }
+
+/* ==========================================================================
+   LINKCHAT v4.0 — MESH NETWORK, AI SWARM & GAMING ARENA STYLES
+   ========================================================================== */
+
+/* 1. Header Mesh Status Pill */
+.mesh-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 8px;
+  border-radius: 999px;
+  background: rgba(52, 199, 89, 0.12);
+  border: 1px solid rgba(52, 199, 89, 0.25);
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--apple-green, #34c759);
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.mesh-pill:hover {
+  background: rgba(52, 199, 89, 0.2);
+  transform: translateY(-0.5px);
+}
+.mesh-pulse-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--apple-green, #34c759);
+  box-shadow: 0 0 6px var(--apple-green, #34c759);
+  animation: meshPulse 2s infinite ease-in-out;
+}
+@keyframes meshPulse {
+  0%, 100% { opacity: 1; transform: scale(1); }
+  50% { opacity: 0.4; transform: scale(0.85); }
+}
+
+/* 2. Mesh Modal Dialog */
+.apple-modal-card.mesh-card {
+  max-width: 440px;
+  padding: 24px 20px 18px;
+}
+.mesh-icon-wrap {
+  background: rgba(0, 122, 255, 0.12) !important;
+  color: var(--accent, #007aff) !important;
+}
+.mesh-segmented-control {
+  display: flex;
+  width: 100%;
+  background: rgba(120, 120, 128, 0.14);
+  border-radius: 9px;
+  padding: 2px;
+  margin: 14px 0;
+  gap: 2px;
+}
+.mesh-tab {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 6px 10px;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--apple-label);
+  border-radius: 7px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.mesh-tab.active {
+  background: var(--apple-surface-solid);
+  color: var(--apple-label);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+}
+.mesh-view-panel {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+}
+.mesh-step-hint {
+  font-size: 12px;
+  opacity: 0.8;
+  margin: 8px 0;
+  text-align: center;
+  line-height: 1.4;
+}
+.mesh-camera-wrap {
+  position: relative;
+  width: 100%;
+  max-width: 320px;
+  height: 220px;
+  background: #000;
+  border-radius: 14px;
+  overflow: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.mesh-camera-wrap video {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+.mesh-scanner-overlay {
+  position: absolute;
+  inset: 0;
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+}
+.mesh-scan-reticle {
+  width: 160px;
+  height: 160px;
+  border: 2px solid rgba(0, 122, 255, 0.8);
+  border-radius: 16px;
+  box-shadow: 0 0 0 9999px rgba(0, 0, 0, 0.4);
+}
+.mesh-code-input {
+  width: 100%;
+  font-family: monospace;
+  font-size: 11px;
+  padding: 10px;
+  border-radius: 12px;
+  background: rgba(120, 120, 128, 0.08);
+  border: 1px solid var(--apple-border);
+  color: var(--apple-label);
+  resize: vertical;
+}
+.mesh-stats-bar {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 8px;
+  padding: 10px 12px;
+  margin-top: 14px;
+  background: rgba(120, 120, 128, 0.06);
+  border-radius: 12px;
+  border: 1px solid var(--apple-border);
+  text-align: center;
+}
+.mesh-stat-item {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.mesh-stat-label {
+  font-size: 10.5px;
+  opacity: 0.7;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+.mesh-stat-val {
+  font-size: 12px;
+  color: var(--accent, #007aff);
+}
+
+/* 3. AI Swarm Modal Dialog */
+.apple-modal-card.ai-card {
+  max-width: 480px;
+  padding: 24px 20px 18px;
+}
+.ai-icon-wrap {
+  background: rgba(175, 82, 222, 0.12) !important;
+  color: #af52de !important;
+}
+.ai-quick-grid {
+  width: 100%;
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin: 14px 0 6px 0;
+}
+@media (max-width: 420px) {
+  .ai-quick-grid {
+    grid-template-columns: 1fr;
+  }
+}
+.ai-quick-action-btn {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border-radius: 14px;
+  background: rgba(120, 120, 128, 0.08);
+  border: 1px solid var(--apple-border);
+  cursor: pointer;
+  text-align: left;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.ai-quick-action-btn:hover {
+  background: rgba(120, 120, 128, 0.16);
+  transform: translateY(-1px);
+}
+.ai-action-icon {
+  font-size: 22px;
+  flex-shrink: 0;
+}
+.ai-action-text {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+.ai-action-text strong {
+  font-size: 13px;
+  color: var(--apple-label);
+}
+.ai-action-text span {
+  font-size: 11px;
+  opacity: 0.75;
+  line-height: 1.3;
+}
+.ai-form-area {
+  width: 100%;
+  margin-top: 10px;
+  padding: 12px;
+  background: rgba(120, 120, 128, 0.06);
+  border-radius: 14px;
+  border: 1px solid var(--apple-border);
+}
+
+/* 4. In-Feed Apple Glass AI Cards & Polls */
+.ai-glass-card {
+  width: 100%;
+  max-width: 420px;
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  border-radius: 16px;
+  padding: 12px 14px;
+  margin: 4px 0;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.08);
+  overflow: hidden;
+}
+[data-theme="dark"] .ai-glass-card {
+  background: rgba(30, 30, 34, 0.7);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+}
+.ai-glass-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  padding-bottom: 6px;
+  border-bottom: 1px solid rgba(120, 120, 128, 0.15);
+}
+.ai-glass-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--apple-label);
+}
+.ai-badge {
+  display: inline-block;
+  padding: 2px 7px;
+  font-size: 10.5px;
+  font-weight: 600;
+  border-radius: 999px;
+  background: rgba(0, 122, 255, 0.15);
+  color: var(--accent, #007aff);
+}
+.ai-metric-row {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+/* Consensus Poll Styling */
+.ai-poll-container {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin: 6px 0;
+}
+.ai-poll-opts {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.ai-poll-opt-btn {
+  position: relative;
+  width: 100%;
+  min-height: 38px;
+  border-radius: 10px;
+  background: rgba(120, 120, 128, 0.1);
+  border: 1px solid rgba(120, 120, 128, 0.18);
+  cursor: pointer;
+  overflow: hidden;
+  padding: 8px 12px;
+  text-align: left;
+  transition: all 0.15s ease;
+}
+.ai-poll-opt-btn:hover {
+  background: rgba(120, 120, 128, 0.16);
+}
+.ai-poll-fill {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  background: rgba(0, 122, 255, 0.22);
+  transition: width 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+  pointer-events: none;
+}
+.ai-poll-opt-label {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--apple-label);
+}
+.ai-poll-pct {
+  font-weight: 600;
+  font-size: 11.5px;
+  color: var(--accent, #007aff);
+}
+.ai-poll-meta {
+  display: flex;
+  justify-content: space-between;
+  font-size: 11px;
+  opacity: 0.7;
+  padding: 0 4px;
+}
+
+/* Swarm Debate Cards */
+.ai-swarm-agent-card {
+  padding: 8px 10px;
+  border-radius: 10px;
+  background: rgba(120, 120, 128, 0.08);
+  margin-bottom: 6px;
+  border-left: 3px solid var(--accent, #007aff);
+}
+.ai-swarm-agent-header {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 4px;
+}
+.ai-agent-avatar {
+  font-size: 15px;
+}
+.ai-agent-name {
+  font-size: 12px;
+  font-weight: 600;
+}
+.ai-agent-role {
+  font-size: 10.5px;
+  opacity: 0.65;
+}
+.ai-swarm-agent-quote {
+  font-size: 12px;
+  line-height: 1.4;
+  opacity: 0.9;
+  font-style: italic;
+}
+.ai-sub-btn {
+  background: transparent;
+  border: 1px solid var(--accent, #007aff);
+  color: var(--accent, #007aff);
+  padding: 4px 10px;
+  border-radius: 8px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.ai-sub-btn:hover {
+  background: rgba(0, 122, 255, 0.1);
+}
+
+/* 5. Gaming Arena Modal */
+.apple-modal-card.arena-card {
+  max-width: 640px;
+  padding: 22px 18px 16px;
+}
+.arena-tab-bar {
+  display: flex;
+  width: 100%;
+  background: rgba(120, 120, 128, 0.14);
+  border-radius: 9px;
+  padding: 2px;
+  margin: 10px 0;
+  gap: 2px;
+}
+.arena-tab {
+  flex: 1;
+  border: none;
+  background: transparent;
+  padding: 6px 8px;
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--apple-label);
+  border-radius: 7px;
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.arena-tab.active {
+  background: var(--apple-surface-solid);
+  font-weight: 600;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.12);
+}
+.arena-viewport {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  background: #080811;
+  border-radius: 14px;
+  overflow: hidden;
+  position: relative;
+  box-shadow: inset 0 0 20px rgba(0,0,0,0.5);
+}
+.arena-canvas {
+  width: 100%;
+  max-width: 580px;
+  height: auto;
+  display: block;
+}
+.arena-controls-bar {
+  display: flex;
+  width: 100%;
+  gap: 8px;
+  margin-top: 12px;
+}
+.arena-controls-bar button {
+  flex: 1;
+}
+
