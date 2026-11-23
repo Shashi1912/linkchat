@@ -3912,3 +3912,130 @@ button:active, .room-btn-apple:active, .segment-tab:active {
   border-radius: 10px;
   box-shadow: 0 2px 10px rgba(0, 0, 0, 0.15);
 }
+
+
+/* ---------- Capsules: attach menu, sheet, modal, and cards ---------- */
+.cap-menu {
+  position: fixed;
+  z-index: 60;
+  min-width: 220px;
+  padding: 6px;
+  border-radius: 14px;
+  background: rgba(250, 250, 252, 0.98);
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.18);
+  display: flex;
+  flex-direction: column;
+}
+@media (prefers-color-scheme: dark) {
+  .cap-menu { background: rgba(44, 44, 46, 0.98); }
+}
+.cap-menu-item {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  text-align: left;
+  padding: 10px 12px;
+  border-radius: 10px;
+  font-size: 15px;
+  cursor: pointer;
+}
+.cap-menu-item:hover { background: rgba(120, 120, 128, 0.16); }
+
+.cap-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 70;
+  background: rgba(0, 0, 0, 0.45);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  display: flex;
+  align-items: flex-end;
+  justify-content: center;
+}
+@media (min-width: 640px) { .cap-overlay { align-items: center; } }
+.cap-sheet {
+  width: 100%;
+  max-width: 460px;
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 18px;
+  border-radius: 18px 18px 0 0;
+  background: #fff;
+  color: #111;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+@media (min-width: 640px) { .cap-sheet { border-radius: 18px; } }
+@media (prefers-color-scheme: dark) {
+  .cap-sheet { background: #1c1c1e; color: #f2f2f7; }
+}
+.cap-head { display: flex; align-items: center; justify-content: space-between; }
+.cap-title { margin: 0; font-size: 18px; font-weight: 650; }
+.cap-close { border: 0; background: transparent; color: inherit; font-size: 18px; padding: 4px 8px; cursor: pointer; }
+.cap-label { font-size: 13px; font-weight: 600; opacity: 0.7; margin-top: 4px; }
+.cap-input {
+  width: 100%;
+  border: 1px solid rgba(120, 120, 128, 0.35);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: inherit;
+  color: inherit;
+  background: rgba(120, 120, 128, 0.08);
+}
+.cap-secondary {
+  border: 0;
+  border-radius: 10px;
+  padding: 10px 12px;
+  background: rgba(120, 120, 128, 0.14);
+  color: inherit;
+  text-align: left;
+  font: inherit;
+  cursor: pointer;
+}
+.cap-secondary:hover { background: rgba(120, 120, 128, 0.22); }
+.cap-primary {
+  border: 0;
+  border-radius: 12px;
+  padding: 12px;
+  margin-top: 6px;
+  background: #007aff;
+  color: #fff;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.cap-primary:hover { filter: brightness(1.08); }
+.cap-primary:disabled { opacity: 0.5; cursor: default; }
+.cap-status { margin: 2px 0; font-size: 13px; opacity: 0.8; }
+.cap-status.bad { color: #d70015; opacity: 1; }
+.cap-photos { display: flex; gap: 8px; flex-wrap: wrap; }
+.cap-thumb { width: 72px; height: 72px; object-fit: cover; border-radius: 10px; }
+.cap-opened-text { white-space: pre-wrap; margin: 6px 0; font-size: 14.5px; line-height: 1.45; }
+.cap-opened-photo { width: 100%; border-radius: 12px; margin: 4px 0; }
+
+.cap-card {
+  min-width: 220px;
+  padding: 6px 4px 4px;
+}
+.cap-card-title { font-weight: 650; font-size: 14px; }
+.cap-card-sub { font-size: 12.5px; opacity: 0.75; margin: 2px 0 6px; }
+.cap-card-actions { display: flex; }
+.cap-card-btn {
+  border: 0;
+  border-radius: 999px;
+  padding: 6px 14px;
+  background: rgba(127, 127, 127, 0.28);
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+.cap-card-btn:disabled { opacity: 0.5; cursor: default; }
+.cap-card-btn.active-unlock {
+  background: var(--accent, #007aff);
+  color: #fff;
+}
