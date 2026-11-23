@@ -2411,6 +2411,7 @@
 
     var ch = sb.channel('room:' + state.room, {
       config: {
+        private: true,
         broadcast: { self: false },
         presence: { key: state.user.id },
       },
@@ -2988,15 +2989,10 @@
     });
   }
 
+  // General Chat is a normal room now: it needs its key like every other room.
   function joinGeneral() {
-    state.room = 'general';
-    state.roomDisplayName = DEFAULT_ROOM_NAME;
-    state.roomKey = '';
-    store(ROOM_KEY, 'general');
-    store(ROOM_NAME_KEY, DEFAULT_ROOM_NAME);
-    store(ROOM_KEY_PASS, null);
-    markRoomAsRead('general');
-    enterChat();
+    showRoomPicker();
+    openKeyModal('general', DEFAULT_ROOM_NAME);
   }
 
   // Security: Brute-Force & Rate-Limiting Protection for Private Rooms
@@ -3170,7 +3166,7 @@
   }
 
   // ---------- Room Views & Apple Dropdown ----------
-  var currentSelectedRoom = { id: 'general', name: 'General Chat', isPrivate: false };
+  var currentSelectedRoom = { id: null, name: 'No room selected', isPrivate: true };
   var unreadCountsByRoom = {};
 
   function markRoomAsRead(roomId) {
@@ -3216,14 +3212,14 @@
     var count = unreadCountsByRoom[roomId] || 0;
     var countStr = count > 0 ? (' • <strong class="unread-text">' + count + ' unread</strong>') : '';
     if (ui.dropdownTriggerSub) {
-      ui.dropdownTriggerSub.innerHTML = (isPrivate ? ('#' + roomId) : 'Public Community Room') + countStr;
+      ui.dropdownTriggerSub.innerHTML = (roomId ? ('#' + roomId) : 'Join with a room ID and key, or create one') + countStr;
     }
     if (ui.dropdownTriggerAvatar) {
       ui.dropdownTriggerAvatar.textContent = isPrivate ? (roomName || roomId).charAt(0).toUpperCase() : '💬';
       ui.dropdownTriggerAvatar.style.background = isPrivate ? 'linear-gradient(135deg, #af52de, #5856d6)' : 'var(--apple-blue-gradient)';
     }
     if (ui.dropdownDeleteBtn) {
-      ui.dropdownDeleteBtn.hidden = !isPrivate;
+      ui.dropdownDeleteBtn.hidden = !isPrivate || !roomId || roomId === 'general';
     }
     if (ui.dropdownItemsList) {
       var items = ui.dropdownItemsList.querySelectorAll('.dropdown-item');
@@ -3339,7 +3335,7 @@
 
     toast('Room deleted successfully.');
     closeDeleteRoomModal();
-    selectDropdownRoom('general', 'General Chat', false);
+    selectDropdownRoom(null, 'No room selected', true);
     loadRoomsList();
   }
 
@@ -3353,7 +3349,7 @@
     unreadCountsByRoom = {};
 
     try {
-      var res = await sb.from('rooms').select('id, name, created_at').order('created_at', { ascending: false });
+      var res = await sb.rpc('my_rooms');
       if (!res.error && res.data) {
         rooms = res.data;
       }
@@ -3412,24 +3408,9 @@
     if (tilesContainer) {
       tilesContainer.innerHTML = '';
 
-      // General Community Room
-      var genTile = document.createElement('button');
-      genTile.type = 'button';
-      genTile.className = 'room-tile-card';
-      genTile.innerHTML =
-        '<div class="room-tile-avatar general">' +
-          '<svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
-            '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/>' +
-          '</svg>' +
-        '</div>' +
-        '<div class="room-tile-meta">' +
-          '<strong>General Chat</strong>' +
-          '<small>' + genSub + '</small>' +
-        '</div>' +
-        genBadgeHtml +
-        '<span class="room-tile-badge public">OPEN</span>';
-      genTile.onclick = function () { joinGeneral(); };
-      tilesContainer.appendChild(genTile);
+      if (!rooms || !rooms.length) {
+        tilesContainer.innerHTML = '<div class="rooms-loading">No rooms yet. Join one with its ID and key, or create a room.</div>';
+      }
 
       if (rooms && rooms.length) {
         rooms.forEach(function (r) {
@@ -3476,23 +3457,9 @@
     if (dropList) {
       dropList.innerHTML = '';
 
-      // General item
-      var genItem = document.createElement('button');
-      genItem.type = 'button';
-      genItem.className = 'dropdown-item' + (currentSelectedRoom.id === 'general' ? ' selected' : '');
-      genItem.dataset.roomId = 'general';
-      genItem.innerHTML =
-        '<div class="dropdown-item-avatar" style="background: var(--apple-blue-gradient);">💬</div>' +
-        '<div class="dropdown-item-meta">' +
-          '<strong>General Chat</strong>' +
-          '<small>' + genSub + '</small>' +
-        '</div>' +
-        (genCount > 0 ? ('<span class="room-tile-count-badge unread">● ' + genCount + '</span>') : '');
-      genItem.onclick = function () {
-        selectDropdownRoom('general', 'General Chat', false);
-        toggleDropdown(false);
-      };
-      dropList.appendChild(genItem);
+      if (!rooms || !rooms.length) {
+        dropList.innerHTML = '<div class="rooms-loading">No rooms yet. Join one with its ID and key, or create a room.</div>';
+      }
 
       if (rooms && rooms.length) {
         rooms.forEach(function (r) {
@@ -3538,13 +3505,19 @@
           };
 
           row.appendChild(itemBtn);
-          row.appendChild(delBtn);
+          if (r.id !== 'general') row.appendChild(delBtn);  // General cannot be deleted
           dropList.appendChild(row);
         });
       }
     }
 
-    // Refresh trigger sub with latest count
+    // The selection must be one of this person's rooms
+    var stillThere = (rooms || []).some(function (r) { return r.id === currentSelectedRoom.id; });
+    if (!stillThere) {
+      currentSelectedRoom = rooms && rooms.length
+        ? { id: rooms[0].id, name: rooms[0].name || rooms[0].id, isPrivate: true }
+        : { id: null, name: 'No rooms yet', isPrivate: true };
+    }
     selectDropdownRoom(currentSelectedRoom.id, currentSelectedRoom.name, currentSelectedRoom.isPrivate);
   }
 
@@ -3684,11 +3657,11 @@
 
   if (ui.dropdownEnterBtn) {
     ui.dropdownEnterBtn.addEventListener('click', function () {
-      if (currentSelectedRoom.id === 'general') {
-        joinGeneral();
-      } else {
-        handleRoomTileClick(currentSelectedRoom.id, currentSelectedRoom.name);
+      if (!currentSelectedRoom.id) {
+        toast('Join a room with its ID and key, or create one.');
+        return;
       }
+      handleRoomTileClick(currentSelectedRoom.id, currentSelectedRoom.name);
     });
   }
 
@@ -4011,9 +3984,9 @@
     var urlRoom = (params.get('room') || '').trim().toLowerCase();
     var urlKey = (params.get('key') || '').trim();
 
-    if (!urlRoom || urlRoom === 'general') {
-      joinGeneral();
-      return true;
+    if (!urlRoom) {
+      showRoomPicker();
+      return false;
     }
 
     if (urlKey) {
@@ -4334,9 +4307,7 @@
       if (urlRoom) {
         await tryAutoJoinFromUrl();
       } else if (savedRoom) {
-        if (savedRoom === 'general' || savedRoom === DEFAULT_ROOM) {
-          joinGeneral();
-        } else if (savedRoomKey) {
+        if (savedRoomKey) {
           try {
             await joinPrivateRoom(savedRoom, savedRoomKey);
           } catch (e) {
