@@ -147,6 +147,7 @@
     messages: $('messages'), olderBtn: $('older-btn'), status: $('status'), feed: $('feed'),
     composer: $('composer'), input: $('msg-input'), sendBtn: $('send-btn'), counter: $('counter'),
     attachBtn: $('attach-btn'), fileInput: $('file-input'),
+    attachSheet: $('attach-action-sheet'), attachPhotoItem: $('attach-photo-item'), attachCapsuleItem: $('attach-capsule-item'),
     feelBar: $('feel-bar'), feelChip: $('feel-chip'), feelMenu: $('feel-menu'),
     typingIndicator: $('typing-indicator'), typingName: $('typing-name'),
     toast: $('toast'),
@@ -646,6 +647,12 @@
 
     // Don't show the internal feeling tag in the notification text
     if (window.Feelings) plainText = window.Feelings.decode(plainText).rest;
+    if (window.Capsules) {
+      var capMeta = window.Capsules.decode(plainText);
+      if (capMeta) {
+        plainText = capMeta.kind === 'time' ? '⏳ Sent a Time Capsule' : '📍 Sent a Place Message';
+      }
+    }
 
     var bodyText = plainText || 'Sent a photo';
 
@@ -2415,9 +2422,10 @@
 
     extractFeeling();
 
-    // 2. Audio Voice Player vs Call Debrief vs Plain Text
+    // 2. Audio Voice Player vs Call Debrief vs Cryptographic Capsule vs Plain Text
     var audioMatch = rawContent.match(/^\[audio:(\d+):([^\]]+)\]/);
     var debriefMatch = rawContent.match(/^\[call:debrief:(.*)\]$/);
+    var capsuleMatch = window.Capsules && window.Capsules.decode(rawContent);
     if (audioMatch) {
       var durSec = parseInt(audioMatch[1], 10) || 0;
       var audioSrc = audioMatch[2];
@@ -2433,6 +2441,10 @@
       } catch (e) {
         b.append(el('div', 'text', rawContent));
       }
+    } else if (capsuleMatch) {
+      var capsuleCard = window.Capsules.renderCard(capsuleMatch, mine);
+      b.append(capsuleCard);
+      textSnippet = capsuleMatch.kind === 'time' ? '⏳ Time Capsule' : '📍 Place Message';
     } else if (rawContent) {
       b.append(el('div', 'text', rawContent));
     }
@@ -3146,9 +3158,35 @@
   }
 
   var isChoosingFile = false;
-  ui.attachBtn.addEventListener('click', function () {
-    isChoosingFile = true;
-    ui.fileInput.click();
+  ui.attachBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    if (ui.attachSheet) {
+      ui.attachSheet.hidden = !ui.attachSheet.hidden;
+    } else {
+      isChoosingFile = true;
+      ui.fileInput.click();
+    }
+  });
+
+  if (ui.attachPhotoItem) {
+    ui.attachPhotoItem.addEventListener('click', function () {
+      if (ui.attachSheet) ui.attachSheet.hidden = true;
+      isChoosingFile = true;
+      ui.fileInput.click();
+    });
+  }
+
+  if (ui.attachCapsuleItem) {
+    ui.attachCapsuleItem.addEventListener('click', function () {
+      if (ui.attachSheet) ui.attachSheet.hidden = true;
+      if (window.Capsules) window.Capsules.openModal('time');
+    });
+  }
+
+  document.addEventListener('click', function (e) {
+    if (ui.attachSheet && !ui.attachSheet.hidden && !ui.attachSheet.contains(e.target) && e.target !== ui.attachBtn) {
+      ui.attachSheet.hidden = true;
+    }
   });
 
   ui.fileInput.addEventListener('change', async function () {
