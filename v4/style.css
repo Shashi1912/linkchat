@@ -1423,12 +1423,13 @@ button:active, .room-btn-apple:active, .segment-tab:active {
     height: 34px;
     border-radius: 9px;
   }
-  /* Apple Pro Clean Header (Mobile): keep Call button and More (...) button visible;
-     secondary buttons move into Apple Action Menu to prevent header overcrowding */
+  /* Apple Pro Clean Header (Mobile): keep Call, Lock Chat, Leave Room, and More (...) visible */
   .header-actions .apple-icon-btn {
     display: none !important;
   }
   .header-actions #call-btn,
+  .header-actions #panic-btn,
+  .header-actions #leave-btn,
   .header-actions #header-more-btn {
     display: grid !important;
   }
@@ -1599,14 +1600,24 @@ button:active, .room-btn-apple:active, .segment-tab:active {
 }
 
 /* Apple Pro Clean Header: Restrained, spacious, and uncluttered on both PC & Mobile.
-   Only Voice Call, Search (desktop), and Action Sheet (...) live on the header.
+   Shows primary Call, Lock Chat (Privacy), Leave Room, and Action Sheet (...).
    All secondary tools live inside the Apple Action Sheet. */
 .header-actions .apple-icon-btn {
   display: none !important;
 }
 .header-actions #call-btn,
+.header-actions #panic-btn,
+.header-actions #leave-btn,
 .header-actions #header-more-btn {
   display: grid !important;
+}
+.header-actions #panic-btn:hover {
+  background: rgba(255, 149, 0, 0.14);
+  color: var(--apple-orange, #ff9500);
+}
+.header-actions #leave-btn:hover {
+  background: rgba(255, 59, 48, 0.14);
+  color: var(--apple-red, #ff3b30);
 }
 @media (min-width: 820px) {
   .header-actions #search-btn {
