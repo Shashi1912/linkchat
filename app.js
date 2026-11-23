@@ -4424,15 +4424,20 @@
 
   function updateCoupleRoomUI(isCouple) {
     var quickLoveBtn = $('quick-love-btn');
-    var coupleMenuSection = $('couple-menu-section');
+    var coupleSisterOptions = $('couple-sister-options');
     var coupleToggleStatus = $('menu-couple-toggle-status');
+    var coupleRootBadge = $('menu-couple-root-badge');
     var coupleGlanceChip = $('couple-glance-chip');
 
     if (quickLoveBtn) quickLoveBtn.hidden = !isCouple;
-    if (coupleMenuSection) coupleMenuSection.hidden = !isCouple;
+    if (coupleSisterOptions) coupleSisterOptions.hidden = !isCouple;
     if (coupleToggleStatus) {
       coupleToggleStatus.textContent = isCouple ? 'ON' : 'OFF';
       coupleToggleStatus.classList.toggle('active', isCouple);
+    }
+    if (coupleRootBadge) {
+      coupleRootBadge.textContent = isCouple ? 'ON' : 'OFF';
+      coupleRootBadge.classList.toggle('active', isCouple);
     }
     if (coupleGlanceChip && !isCouple) {
       coupleGlanceChip.hidden = true;
@@ -5017,9 +5022,37 @@
   }
 
   // Mobile Header More Menu Actions
+  // ---------- Apple Hierarchical Menu Drill-Down Navigation ----------
+  function showMenuSubPane(paneId) {
+    var root = $('menu-view-root');
+    var target = $(paneId);
+    if (!root || !target) return;
+    root.classList.add('nav-out-left');
+    root.classList.remove('active');
+    setTimeout(function () {
+      root.classList.add('hidden-pane');
+      target.classList.remove('hidden-pane');
+      target.classList.add('nav-in-right');
+    }, 120);
+  }
+
+  function resetMenuToRoot() {
+    var root = $('menu-view-root');
+    var panes = document.querySelectorAll('.menu-nav-pane:not(#menu-view-root)');
+    panes.forEach(function (p) {
+      p.classList.remove('nav-in-right');
+      p.classList.add('hidden-pane');
+    });
+    if (root) {
+      root.classList.remove('nav-out-left', 'hidden-pane');
+      root.classList.add('active');
+    }
+  }
+
   function closeHeaderMenu() {
     if (ui.headerMoreMenu) ui.headerMoreMenu.hidden = true;
     if (ui.headerMoreBtn) ui.headerMoreBtn.setAttribute('aria-expanded', 'false');
+    resetMenuToRoot();
   }
 
   function toggleHeaderMenu(e) {
@@ -5028,11 +5061,31 @@
     var isOpen = !ui.headerMoreMenu.hidden;
     ui.headerMoreMenu.hidden = isOpen;
     if (ui.headerMoreBtn) ui.headerMoreBtn.setAttribute('aria-expanded', String(!isOpen));
+    if (!isOpen) {
+      resetMenuToRoot();
+    }
   }
 
   if (ui.headerMoreBtn) {
     ui.headerMoreBtn.addEventListener('click', toggleHeaderMenu);
   }
+
+  var navComm = $('nav-btn-comm');
+  var navTools = $('nav-btn-tools');
+  var navCouple = $('nav-btn-couple');
+  var navSettings = $('nav-btn-settings');
+
+  if (navComm) navComm.addEventListener('click', function (e) { e.stopPropagation(); showMenuSubPane('menu-view-comm'); });
+  if (navTools) navTools.addEventListener('click', function (e) { e.stopPropagation(); showMenuSubPane('menu-view-tools'); });
+  if (navCouple) navCouple.addEventListener('click', function (e) { e.stopPropagation(); showMenuSubPane('menu-view-couple'); });
+  if (navSettings) navSettings.addEventListener('click', function (e) { e.stopPropagation(); showMenuSubPane('menu-view-settings'); });
+
+  document.querySelectorAll('.btn-menu-back').forEach(function (btn) {
+    btn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      resetMenuToRoot();
+    });
+  });
 
   document.addEventListener('click', function (e) {
     if (ui.headerMoreMenu && !ui.headerMoreMenu.hidden) {

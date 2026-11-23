@@ -1722,6 +1722,103 @@ button:active, .room-btn-apple:active, .segment-tab:active {
   color: var(--apple-red);
 }
 
+/* Hierarchical Apple Pro Navigation Stack */
+.menu-nav-stack {
+  position: relative;
+  overflow: hidden;
+  min-width: 260px;
+  max-width: 310px;
+}
+.menu-nav-pane {
+  width: 100%;
+}
+.menu-nav-pane.hidden-pane {
+  display: none !important;
+}
+.menu-nav-pane.nav-in-right {
+  display: block !important;
+  animation: navSlideIn 0.22s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+.menu-nav-pane.nav-out-left {
+  animation: navSlideOut 0.18s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+@keyframes navSlideIn {
+  from { transform: translateX(35px); opacity: 0; }
+  to { transform: translateX(0); opacity: 1; }
+}
+@keyframes navSlideOut {
+  from { transform: translateX(0); opacity: 1; }
+  to { transform: translateX(-25px); opacity: 0; }
+}
+
+.menu-root-header {
+  padding: 8px 12px 6px;
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.6px;
+  color: var(--apple-secondary-label);
+  border-bottom: 1px solid var(--apple-border);
+  margin-bottom: 4px;
+}
+.menu-nav-header {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 8px 8px;
+  border-bottom: 1px solid var(--apple-border);
+  margin-bottom: 4px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--apple-label);
+}
+.btn-menu-back {
+  background: none;
+  border: none;
+  color: var(--apple-blue);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 8px;
+  display: inline-flex;
+  align-items: center;
+  transition: background 0.15s ease;
+}
+.btn-menu-back:hover {
+  background: rgba(120, 120, 128, 0.12);
+}
+
+.menu-parent-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  padding: 10px 12px !important;
+}
+.menu-parent-row strong {
+  font-size: 13.5px;
+  color: var(--apple-label);
+  display: block;
+}
+.menu-parent-row small {
+  font-size: 10.5px;
+  color: var(--apple-secondary-label);
+  display: block;
+}
+.menu-chevron {
+  font-size: 18px;
+  color: var(--apple-secondary-label);
+  margin-left: auto;
+  font-weight: 300;
+  line-height: 1;
+}
+.couple-sister-options {
+  display: flex;
+  flex-direction: column;
+  animation: cardFadeIn 0.2s ease;
+}
+
 .online-list {
   background: var(--apple-surface);
   backdrop-filter: var(--apple-blur);
