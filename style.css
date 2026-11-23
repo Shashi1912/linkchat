@@ -1077,6 +1077,20 @@ button:active, .room-btn-apple:active, .segment-tab:active {
   gap: 10px;
   margin-bottom: 12px;
 }
+.apple-action-btn.namedrop-action-pill {
+  grid-column: 1 / -1;
+  width: 100%;
+  justify-content: center;
+  border-color: rgba(175, 82, 222, 0.28);
+  background: rgba(175, 82, 222, 0.08);
+}
+.apple-action-btn.namedrop-action-pill:hover {
+  background: rgba(175, 82, 222, 0.14);
+  border-color: rgba(175, 82, 222, 0.45);
+}
+.apple-action-btn.namedrop-action-pill span {
+  flex: none;
+}
 
 .apple-action-btn {
   display: flex;
@@ -1349,16 +1363,21 @@ button:active, .room-btn-apple:active, .segment-tab:active {
     border-radius: 10px;
   }
   .apple-actions-row {
-    display: flex;
+    display: grid;
+    grid-template-columns: 1fr 1fr;
     gap: 8px;
     width: 100%;
   }
   .apple-action-btn {
-    flex: 1;
     height: 40px;
     min-height: 40px;
     font-size: 13.5px;
     padding: 0 10px;
+  }
+  .apple-action-btn.namedrop-action-pill {
+    grid-column: 1 / -1;
+    width: 100%;
+    justify-content: center;
   }
   .input-group input,
   .join-card input {
@@ -1739,6 +1758,18 @@ button:active, .room-btn-apple:active, .segment-tab:active {
   overflow: hidden;
   min-width: 260px;
   max-width: 310px;
+}
+@media (max-width: 480px) {
+  .apple-header-menu {
+    right: 8px !important;
+    left: 8px !important;
+    max-width: calc(100vw - 16px) !important;
+  }
+  .menu-nav-stack {
+    min-width: 0 !important;
+    max-width: 100% !important;
+    width: 100% !important;
+  }
 }
 .menu-nav-pane {
   width: 100%;
