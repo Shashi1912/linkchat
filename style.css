@@ -2672,6 +2672,16 @@ button:active, .room-btn-apple:active, .segment-tab:active {
   padding: 12px 14px;
   margin: 6px 0;
   box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+  transition: all 0.2s ease;
+}
+.call-debrief-card.missed {
+  border-left: 4px solid var(--apple-red, #ff3b30);
+}
+.call-debrief-card.declined {
+  border-left: 4px solid var(--apple-orange, #ff9500);
+}
+.call-debrief-card.completed {
+  border-left: 4px solid var(--apple-green, #34c759);
 }
 .debrief-header {
   display: flex;
@@ -2679,8 +2689,18 @@ button:active, .room-btn-apple:active, .segment-tab:active {
   justify-content: space-between;
   margin-bottom: 6px;
 }
+.debrief-title-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.debrief-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
 .debrief-title {
-  font-size: 13px;
+  font-size: 13.5px;
   font-weight: 700;
   color: var(--apple-label);
 }
@@ -2692,12 +2712,283 @@ button:active, .room-btn-apple:active, .segment-tab:active {
   background: rgba(52, 199, 89, 0.15);
   color: #34c759;
 }
+.debrief-time-badge.badge-missed {
+  background: rgba(255, 59, 48, 0.15);
+  color: var(--apple-red, #ff3b30);
+}
+.debrief-time-badge.badge-declined {
+  background: rgba(255, 149, 0, 0.15);
+  color: var(--apple-orange, #ff9500);
+}
+.debrief-time-badge.badge-completed {
+  background: rgba(52, 199, 89, 0.15);
+  color: var(--apple-green, #34c759);
+}
+.debrief-meta {
+  font-size: 12px;
+  color: var(--apple-secondary-label);
+  margin-bottom: 6px;
+  line-height: 1.4;
+}
+.debrief-security {
+  font-size: 11px;
+  margin-top: 3px;
+  opacity: 0.9;
+}
+.debrief-bm-title {
+  display: block;
+  font-size: 12px;
+  margin-top: 8px;
+  color: var(--apple-label);
+}
 .debrief-bookmarks-list {
-  margin: 8px 0 0;
+  margin: 6px 0 0;
   padding-left: 18px;
   font-size: 12px;
   line-height: 1.5;
   opacity: 0.9;
+}
+.debrief-card-actions {
+  display: flex;
+  gap: 8px;
+  margin-top: 10px;
+  padding-top: 8px;
+  border-top: 1px solid var(--apple-border);
+}
+.btn-debrief-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 12px;
+  border-radius: 999px;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.16s ease;
+}
+.btn-debrief-action.call-back {
+  background: #34c759;
+  color: #fff;
+  border-color: #34c759;
+  box-shadow: 0 2px 6px rgba(52, 199, 89, 0.25);
+}
+.btn-debrief-action.call-back:hover {
+  filter: brightness(1.08);
+  transform: translateY(-1px);
+}
+.btn-debrief-action.recents {
+  background: rgba(120, 120, 128, 0.12);
+  color: var(--apple-label);
+  border-color: var(--apple-border);
+}
+.btn-debrief-action.recents:hover {
+  background: rgba(120, 120, 128, 0.2);
+}
+
+/* 5. Separate Apple Call Recents Drawer / Modal */
+.apple-modal-card.call-history-card {
+  max-width: 440px;
+  width: 92%;
+  max-height: 82vh;
+  padding: 22px 18px 16px;
+}
+.call-history-header {
+  width: 100%;
+  margin-bottom: 12px;
+}
+.call-history-title-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+.call-history-icon-badge {
+  width: 42px;
+  height: 42px;
+  border-radius: 50%;
+  background: rgba(52, 199, 89, 0.14);
+  color: #34c759;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.call-history-title-text h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--apple-label);
+}
+.call-history-title-text p {
+  margin: 2px 0 0;
+  font-size: 12.5px;
+  color: var(--apple-secondary-label);
+}
+.call-history-segmented {
+  display: flex;
+  width: 100%;
+  background: rgba(120, 120, 128, 0.14);
+  border-radius: 9px;
+  padding: 2px;
+}
+.history-tab-btn {
+  flex: 1;
+  padding: 6px 12px;
+  border: none;
+  background: transparent;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 7px;
+  cursor: pointer;
+  color: var(--apple-secondary-label);
+  transition: all 0.18s ease;
+}
+.history-tab-btn.active {
+  background: var(--apple-surface-solid, #ffffff);
+  color: var(--apple-label, #000);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+.call-history-list {
+  width: 100%;
+  flex: 1;
+  overflow-y: auto;
+  max-height: 380px;
+  min-height: 180px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  padding: 2px 4px 2px 0;
+}
+.call-history-item {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  background: rgba(120, 120, 128, 0.06);
+  border: 1px solid rgba(120, 120, 128, 0.08);
+  transition: background 0.15s ease, transform 0.15s ease;
+}
+.call-history-item:hover {
+  background: rgba(120, 120, 128, 0.12);
+}
+.call-history-item.missed {
+  border-left: 3px solid var(--apple-red, #ff3b30);
+}
+.call-item-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+.call-item-icon.completed {
+  background: rgba(52, 199, 89, 0.12);
+}
+.call-item-icon.missed {
+  background: rgba(255, 59, 48, 0.12);
+}
+.call-item-icon.declined {
+  background: rgba(255, 149, 0, 0.12);
+}
+.call-item-info {
+  flex: 1;
+  min-width: 0;
+}
+.call-item-name-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.call-item-name {
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--apple-label);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.call-item-name.missed-name {
+  color: var(--apple-red, #ff3b30);
+}
+.call-item-details {
+  font-size: 12px;
+  color: var(--apple-secondary-label);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 2px;
+}
+.call-item-action {
+  flex-shrink: 0;
+}
+.btn-call-back-round {
+  width: 34px;
+  height: 34px;
+  border-radius: 50%;
+  background: #34c759;
+  color: #fff;
+  border: none;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  box-shadow: 0 2px 8px rgba(52, 199, 89, 0.32);
+  transition: transform 0.15s ease, filter 0.15s ease;
+}
+.btn-call-back-round:hover {
+  transform: scale(1.08);
+  filter: brightness(1.06);
+}
+.call-history-empty {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 36px 16px;
+  text-align: center;
+  color: var(--apple-secondary-label);
+}
+.call-history-empty .call-empty-icon {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: rgba(120, 120, 128, 0.1);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+  color: var(--apple-secondary-label);
+}
+.call-history-empty h4 {
+  margin: 0 0 4px;
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--apple-label);
+}
+.call-history-empty p {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.4;
+}
+.call-history-footer {
+  width: 100%;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--apple-border);
+}
+.btn-apple-cancel.text-danger {
+  color: var(--apple-red, #ff3b30);
+}
+.btn-apple-cancel.text-danger:hover {
+  background: rgba(255, 59, 48, 0.1);
 }
 
 /* ---------- Privacy Shield (Anti-Peeking & Tab Blur) ---------- */

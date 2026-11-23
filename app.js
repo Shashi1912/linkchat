@@ -53,6 +53,14 @@
     online: $('online'), onlineCount: $('online-count'), onlineList: $('online-list'),
     conn: $('conn'), copyBtn: $('copy-btn'), roomsBtn: $('rooms-btn'),
     callBtn: $('call-btn'),
+    callHistoryBtn: $('call-history-btn'),
+    menuCallHistoryBtn: $('menu-call-history-btn'),
+    callHistoryModal: $('call-history-modal'),
+    callHistoryList: $('call-history-list'),
+    callHistoryFilterAll: $('call-history-filter-all'),
+    callHistoryFilterMissed: $('call-history-filter-missed'),
+    callHistoryClearBtn: $('call-history-clear-btn'),
+    callHistoryCloseBtn: $('call-history-close-btn'),
     callIncomingBanner: $('call-incoming-banner'),
     callIncomingAvatar: $('call-incoming-avatar'),
     callIncomingCaller: $('call-incoming-caller'),
@@ -691,6 +699,197 @@
   });
 
   // =========================================================================
+  // Apple Call History & Recents Controller
+  // =========================================================================
+  var callHistoryFilter = 'all'; // 'all' | 'missed'
+
+  function formatCallTimestamp(ts) {
+    if (!ts) return '';
+    var d = new Date(ts);
+    var now = new Date();
+    var isToday = d.toDateString() === now.toDateString();
+    var hours = d.getHours();
+    var mins = d.getMinutes();
+    var ampm = hours >= 12 ? 'PM' : 'AM';
+    hours = hours % 12;
+    hours = hours ? hours : 12;
+    var minStr = mins < 10 ? '0' + mins : mins;
+    var timeStr = hours + ':' + minStr + ' ' + ampm;
+    if (isToday) return 'Today, ' + timeStr;
+    var yesterday = new Date(now);
+    yesterday.setDate(now.getDate() - 1);
+    if (d.toDateString() === yesterday.toDateString()) return 'Yesterday, ' + timeStr;
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ', ' + timeStr;
+  }
+
+  function getCallHistory() {
+    var history = [];
+    var key = 'linkchat_call_history_' + (state.room || 'global');
+    try {
+      var stored = localStorage.getItem(key);
+      if (stored) history = JSON.parse(stored);
+    } catch (e) {}
+
+    var seenKeys = new Set();
+    history.forEach(function (h) {
+      if (h.callId) seenKeys.add(h.callId);
+      if (h.id) seenKeys.add(h.id);
+    });
+
+    if (state.msgs) {
+      state.msgs.forEach(function (m) {
+        if (m.content && m.content.indexOf('[call:debrief:') !== -1) {
+          try {
+            var match = m.content.match(/\[call:debrief:(.*)\]/);
+            if (match) {
+              var d = JSON.parse(decodeURIComponent(match[1]));
+              var entryKey = d.callId || m.id;
+              if (!seenKeys.has(entryKey)) {
+                seenKeys.add(entryKey);
+                history.push({
+                  id: m.id,
+                  callId: d.callId || m.id,
+                  type: d.type || 'completed',
+                  direction: d.direction || (m.user_id === (state.user && state.user.id) ? 'outgoing' : 'incoming'),
+                  callerName: d.callerName || m.display_name,
+                  peerName: d.peerName || m.display_name,
+                  duration: d.duration || '',
+                  safetyEmojis: d.safetyEmojis || '',
+                  bookmarks: d.bookmarks || [],
+                  timestamp: d.timestamp || m.ts || Date.now()
+                });
+              }
+            }
+          } catch (e) {}
+        }
+      });
+    }
+
+    history.sort(function (a, b) { return (b.timestamp || 0) - (a.timestamp || 0); });
+    return history;
+  }
+
+  function saveCallHistory(history) {
+    var key = 'linkchat_call_history_' + (state.room || 'global');
+    try {
+      localStorage.setItem(key, JSON.stringify(history.slice(0, 150)));
+    } catch (e) {}
+  }
+
+  function recordCallHistory(record) {
+    if (!record) return;
+    var history = getCallHistory();
+    record.id = record.id || uuid();
+    if (!record.timestamp) record.timestamp = Date.now();
+
+    var isDuplicate = history.some(function (h) {
+      if (record.callId && h.callId && record.callId === h.callId) return true;
+      if (h.type === record.type && Math.abs((h.timestamp || 0) - record.timestamp) < 3000) return true;
+      return false;
+    });
+
+    if (!isDuplicate) {
+      history.unshift(record);
+      saveCallHistory(history);
+    }
+  }
+
+  function openCallHistoryModal() {
+    if (!ui.callHistoryModal) return;
+    ui.callHistoryModal.hidden = false;
+    renderCallHistoryList();
+  }
+
+  function closeCallHistoryModal() {
+    if (ui.callHistoryModal) ui.callHistoryModal.hidden = true;
+  }
+
+  function clearCallHistory() {
+    saveCallHistory([]);
+    renderCallHistoryList();
+    toast('Call history cleared 🗑️');
+  }
+
+  function renderCallHistoryList() {
+    if (!ui.callHistoryList) return;
+    ui.callHistoryList.innerHTML = '';
+    var allRecords = getCallHistory();
+
+    var records = allRecords.filter(function (r) {
+      if (callHistoryFilter === 'missed') {
+        return r.type === 'missed' || r.type === 'declined';
+      }
+      return true;
+    });
+
+    if (records.length === 0) {
+      var empty = el('div', 'call-history-empty');
+      empty.innerHTML =
+        '<div class="call-empty-icon">' +
+          '<svg viewBox="0 0 24 24" width="36" height="36" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">' +
+            '<path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path>' +
+          '</svg>' +
+        '</div>' +
+        '<h4>No ' + (callHistoryFilter === 'missed' ? 'Missed ' : '') + 'Calls</h4>' +
+        '<p>' + (callHistoryFilter === 'missed' ? 'You have no missed calls in this room.' : 'Calls you make or receive in this room will appear here.') + '</p>';
+      ui.callHistoryList.append(empty);
+      return;
+    }
+
+    records.forEach(function (rec) {
+      var item = el('div', 'call-history-item' + (rec.type === 'missed' ? ' missed' : ''));
+
+      // Left Icon
+      var iconWrap = el('div', 'call-item-icon ' + (rec.type || 'completed'));
+      if (rec.type === 'missed') {
+        iconWrap.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#ff3b30" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91"></path><line x1="23" y1="1" x2="1" y2="23"></line></svg>';
+      } else if (rec.type === 'declined') {
+        iconWrap.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#ff9500" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line></svg>';
+      } else if (rec.direction === 'outgoing') {
+        iconWrap.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#34c759" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="7 17 17 7"></polyline><polyline points="7 7 17 7 17 17"></polyline></svg>';
+      } else {
+        iconWrap.innerHTML = '<svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="#34c759" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><polyline points="17 7 7 17"></polyline><polyline points="17 17 7 17 7 7"></polyline></svg>';
+      }
+
+      // Middle Info
+      var info = el('div', 'call-item-info');
+      var nameRow = el('div', 'call-item-name-row');
+      var nameEl = el('span', 'call-item-name');
+      var contactName = rec.direction === 'outgoing' ? (rec.peerName || 'Participant') : (rec.callerName || 'Participant');
+      nameEl.textContent = contactName || 'Voice Call';
+      if (rec.type === 'missed') nameEl.classList.add('missed-name');
+      nameRow.append(nameEl);
+
+      var detailsRow = el('div', 'call-item-details');
+      var dirLabel = rec.type === 'missed' ? 'Missed' : (rec.type === 'declined' ? 'Declined' : (rec.direction === 'outgoing' ? 'Outgoing' : 'Incoming'));
+      var durLabel = rec.duration ? ' • ' + escapeHtml(rec.duration) : '';
+      var dateLabel = formatCallTimestamp(rec.timestamp);
+      detailsRow.innerHTML = '<span>' + dirLabel + durLabel + '</span><span class="call-item-time">' + dateLabel + '</span>';
+
+      info.append(nameRow, detailsRow);
+
+      // Right Action (Call Back)
+      var actionWrap = el('div', 'call-item-action');
+      var callbackBtn = el('button', 'btn-call-back-round');
+      callbackBtn.type = 'button';
+      callbackBtn.title = 'Call ' + (contactName || 'back');
+      callbackBtn.setAttribute('aria-label', 'Call back');
+      callbackBtn.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>';
+      callbackBtn.addEventListener('click', function (e) {
+        e.stopPropagation();
+        closeCallHistoryModal();
+        if (CallManager && CallManager.startCall) {
+          CallManager.startCall();
+        }
+      });
+      actionWrap.append(callbackBtn);
+
+      item.append(iconWrap, info, actionWrap);
+      ui.callHistoryList.append(item);
+    });
+  }
+
+  // =========================================================================
   // Apple WebRTC Voice Calling Engine
   // =========================================================================
   var CallManager = (function () {
@@ -698,6 +897,7 @@
     var activeCallId = null;
     var peerId = null;
     var peerName = '';
+    var isCaller = false;
     var pc = null;
     var localStream = null;
     var localVideoTrack = null;
@@ -1171,6 +1371,7 @@
       }
 
       stateCall = 'OUTGOING';
+      isCaller = true;
       activeCallId = uuid();
       peerId = null;
       peerName = '';
@@ -1202,7 +1403,7 @@
       autoCancelTimer = setTimeout(function () {
         if (stateCall === 'OUTGOING') {
           toast('No answer.');
-          endCall(true);
+          endCall(true, 'missed');
         }
       }, 45000);
     }
@@ -1218,6 +1419,7 @@
       }
 
       stateCall = 'INCOMING';
+      isCaller = false;
       activeCallId = payload.callId;
       peerId = payload.callerId;
       peerName = payload.callerName || 'Someone';
@@ -1239,6 +1441,15 @@
       clearTimeout(autoCancelTimer);
       autoCancelTimer = setTimeout(function () {
         if (stateCall === 'INCOMING') {
+          recordCallHistory({
+            callId: activeCallId,
+            type: 'missed',
+            direction: 'incoming',
+            duration: 'Missed Call',
+            callerName: peerName || 'Someone',
+            peerName: state.user ? state.name : 'You',
+            timestamp: Date.now()
+          });
           hideIncomingUI();
           stopRingtone();
           stateCall = 'IDLE';
@@ -1301,11 +1512,23 @@
 
       var rejectedCallId = activeCallId;
       var callerId = peerId;
+      var currentPeerName = peerName;
+
+      recordCallHistory({
+        callId: rejectedCallId,
+        type: 'declined',
+        direction: 'incoming',
+        duration: 'Declined',
+        callerName: currentPeerName || 'Someone',
+        peerName: state.user ? state.name : 'You',
+        timestamp: Date.now()
+      });
 
       stateCall = 'IDLE';
       activeCallId = null;
       peerId = null;
       peerName = '';
+      isCaller = false;
 
       try {
         if (state.channel && rejectedCallId) {
@@ -1362,7 +1585,7 @@
       if (stateCall === 'OUTGOING' && payload.callId === activeCallId) {
         toast('Call was declined.');
         playEndChime();
-        endCall(false);
+        endCall(true, 'declined');
       }
     }
 
@@ -1498,8 +1721,32 @@
       }
     }
 
+    function sendCallDebriefMessage(payload) {
+      var encodedDebrief = '[call:debrief:' + encodeURIComponent(JSON.stringify(payload)) + ']';
+      var debriefMsg = {
+        id: uuid(),
+        user_id: state.user ? state.user.id : 'system',
+        display_name: '📞 Voice Call',
+        content: encodedDebrief,
+        raw: null,
+        ts: payload.timestamp || Date.now(),
+        status: 'sent',
+        seq: ++state.seq
+      };
+      if (typeof insert === 'function') {
+        insert(debriefMsg).catch(function (err) {
+          console.warn('Call debrief insert error:', err);
+          state.msgs.set(debriefMsg.id, debriefMsg);
+          render('bottom');
+        });
+      } else {
+        state.msgs.set(debriefMsg.id, debriefMsg);
+        render('bottom');
+      }
+    }
+
     // ---------- End Call (Hang up) ----------
-    function endCall(sendBroadcast) {
+    function endCall(sendBroadcast, reason) {
       stopRingtone();
       hideIncomingUI();
       clearTimeout(autoCancelTimer);
@@ -1519,33 +1766,67 @@
         } catch (e) {}
       }
 
-      if (stateCall === 'CONNECTED' && durationStr && durationStr !== 'Connecting…') {
+      var priorState = stateCall;
+      var currentPeerName = peerName;
+      var currentCallId = activeCallId;
+
+      if (priorState === 'CONNECTED') {
         playEndChime();
+        if (!durationStr || durationStr === 'Connecting…' || durationStr === 'Ringing…') {
+          var secElapsed = callStartTs ? Math.max(1, Math.round((Date.now() - callStartTs) / 1000)) : 1;
+          var m = Math.floor(secElapsed / 60);
+          var s = secElapsed % 60;
+          durationStr = (m < 10 ? '0' + m : m) + ':' + (s < 10 ? '0' + s : s);
+        }
         toast('Call ended (' + durationStr + ')');
 
-        if (callBookmarks.length > 0 || (callStartTs && Date.now() - callStartTs > 6000)) {
-          var debriefPayload = {
-            duration: durationStr,
-            safetyEmojis: dtlsSafetyEmojis || '🛡️ 🔒 ⚡ 💎',
-            bookmarks: callBookmarks.slice()
-          };
-          var encodedDebrief = '[call:debrief:' + encodeURIComponent(JSON.stringify(debriefPayload)) + ']';
-          var debriefMsg = {
-            id: uuid(),
-            user_id: state.user ? state.user.id : 'system',
-            display_name: '📞 Voice Call',
-            content: encodedDebrief,
-            raw: null,
-            ts: Date.now(),
-            status: 'sent',
-            seq: ++state.seq
-          };
-          state.msgs.set(debriefMsg.id, debriefMsg);
-          render('bottom');
-        }
-      }
-      callBookmarks = [];
+        var debriefPayload = {
+          callId: currentCallId,
+          type: 'completed',
+          direction: isCaller ? 'outgoing' : 'incoming',
+          duration: durationStr,
+          callerName: isCaller ? (state.user ? state.name : 'You') : (currentPeerName || 'Someone'),
+          peerName: isCaller ? (currentPeerName || 'Someone') : (state.user ? state.name : 'You'),
+          safetyEmojis: dtlsSafetyEmojis || '🛡️ 🔒 ⚡ 💎',
+          bookmarks: callBookmarks.slice(),
+          timestamp: Date.now()
+        };
 
+        recordCallHistory(debriefPayload);
+
+        if (sendBroadcast !== false) {
+          sendCallDebriefMessage(debriefPayload);
+        }
+      } else if (priorState === 'OUTGOING') {
+        var callType = reason || 'missed';
+        var debriefPayload = {
+          callId: currentCallId,
+          type: callType,
+          direction: 'outgoing',
+          duration: callType === 'declined' ? 'Declined' : 'Missed Call',
+          callerName: state.user ? state.name : 'You',
+          peerName: currentPeerName || 'Participant',
+          timestamp: Date.now()
+        };
+        recordCallHistory(debriefPayload);
+        if (sendBroadcast !== false) {
+          sendCallDebriefMessage(debriefPayload);
+        }
+      } else if (priorState === 'INCOMING') {
+        var callType = reason || 'missed';
+        var debriefPayload = {
+          callId: currentCallId,
+          type: callType,
+          direction: 'incoming',
+          duration: callType === 'declined' ? 'Declined' : 'Missed Call',
+          callerName: currentPeerName || 'Someone',
+          peerName: state.user ? state.name : 'You',
+          timestamp: Date.now()
+        };
+        recordCallHistory(debriefPayload);
+      }
+
+      callBookmarks = [];
       stopCallTimer();
       cleanupMedia();
 
@@ -1555,6 +1836,7 @@
       activeCallId = null;
       peerId = null;
       peerName = '';
+      isCaller = false;
     }
 
     async function toggleVideo() {
@@ -1708,12 +1990,60 @@
           if (ui.telestratorPenBtn) ui.telestratorPenBtn.classList.remove('active');
         });
       }
+      // Call Recents / History Modal Listeners
+      if (ui.callHistoryBtn) {
+        ui.callHistoryBtn.addEventListener('click', openCallHistoryModal);
+      }
+      if (ui.menuCallHistoryBtn) {
+        ui.menuCallHistoryBtn.addEventListener('click', function () {
+          closeHeaderMenu();
+          openCallHistoryModal();
+        });
+      }
+      if (ui.callHistoryCloseBtn) {
+        ui.callHistoryCloseBtn.addEventListener('click', closeCallHistoryModal);
+      }
+      if (ui.callHistoryClearBtn) {
+        ui.callHistoryClearBtn.addEventListener('click', clearCallHistory);
+      }
+      if (ui.callHistoryFilterAll) {
+        ui.callHistoryFilterAll.addEventListener('click', function () {
+          callHistoryFilter = 'all';
+          ui.callHistoryFilterAll.classList.add('active');
+          ui.callHistoryFilterAll.setAttribute('aria-selected', 'true');
+          if (ui.callHistoryFilterMissed) {
+            ui.callHistoryFilterMissed.classList.remove('active');
+            ui.callHistoryFilterMissed.setAttribute('aria-selected', 'false');
+          }
+          renderCallHistoryList();
+        });
+      }
+      if (ui.callHistoryFilterMissed) {
+        ui.callHistoryFilterMissed.addEventListener('click', function () {
+          callHistoryFilter = 'missed';
+          ui.callHistoryFilterMissed.classList.add('active');
+          ui.callHistoryFilterMissed.setAttribute('aria-selected', 'true');
+          if (ui.callHistoryFilterAll) {
+            ui.callHistoryFilterAll.classList.remove('active');
+            ui.callHistoryFilterAll.setAttribute('aria-selected', 'false');
+          }
+          renderCallHistoryList();
+        });
+      }
+      if (ui.callHistoryModal) {
+        ui.callHistoryModal.addEventListener('click', function (e) {
+          if (e.target === ui.callHistoryModal) {
+            closeCallHistoryModal();
+          }
+        });
+      }
     }
 
     return {
       init: init,
       startCall: startCall,
       endCall: endCall,
+      openRecents: openCallHistoryModal,
       handleIncomingInvite: handleIncomingInvite,
       handlePeerAccept: handlePeerAccept,
       handlePeerDecline: handlePeerDecline,
@@ -2442,9 +2772,12 @@
     } else if (debriefMatch) {
       try {
         var debriefObj = JSON.parse(decodeURIComponent(debriefMatch[1]));
+        recordCallHistory(debriefObj);
         var debriefCard = buildCallDebriefElement(debriefObj);
         b.append(debriefCard);
-        textSnippet = '📞 Call Ended (' + (debriefObj.duration || '') + ')';
+        textSnippet = debriefObj.type === 'missed' ? '📵 Missed Call' :
+                     (debriefObj.type === 'declined' ? '🚫 Call Declined' :
+                     '📞 Voice Call (' + (debriefObj.duration || '') + ')');
       } catch (e) {
         b.append(el('div', 'text', rawContent));
       }
@@ -2495,22 +2828,53 @@
   }
 
   function buildCallDebriefElement(d) {
-    var card = el('div', 'call-debrief-card');
+    var card = el('div', 'call-debrief-card' + (d.type ? ' ' + d.type : ''));
+
+    // Header
     var head = el('div', 'debrief-header');
-    head.innerHTML = '<span class="debrief-title">📞 Voice Call Completed</span><span class="debrief-time-badge">⏱️ ' + escapeHtml(d.duration) + '</span>';
+    var leftWrap = el('div', 'debrief-title-wrap');
+    var iconSpan = el('span', 'debrief-icon');
+    var titleSpan = el('span', 'debrief-title');
+    var badgeSpan = el('span', 'debrief-time-badge');
+
+    if (d.type === 'missed') {
+      card.classList.add('missed');
+      iconSpan.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#ff3b30" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M10.68 13.31a16 16 0 0 0 3.41 2.6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7 2 2 0 0 1 1.72 2v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.42 19.42 0 0 1-3.33-2.67m-2.67-3.34a19.79 19.79 0 0 1-3.07-8.63A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91"></path><line x1="23" y1="1" x2="1" y2="23"></line></svg>';
+      titleSpan.textContent = 'Missed Voice Call';
+      badgeSpan.className = 'debrief-time-badge badge-missed';
+      badgeSpan.textContent = 'Missed';
+    } else if (d.type === 'declined') {
+      card.classList.add('declined');
+      iconSpan.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#ff9500" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><line x1="4.93" y1="4.93" x2="19.07" y2="19.07"></line></svg>';
+      titleSpan.textContent = 'Call Declined';
+      badgeSpan.className = 'debrief-time-badge badge-declined';
+      badgeSpan.textContent = 'Declined';
+    } else {
+      card.classList.add('completed');
+      iconSpan.innerHTML = '<svg viewBox="0 0 24 24" width="16" height="16" fill="none" stroke="#34c759" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg>';
+      titleSpan.textContent = 'Voice Call Completed';
+      badgeSpan.className = 'debrief-time-badge badge-completed';
+      badgeSpan.textContent = '⏱️ ' + (d.duration || '0:00');
+    }
+
+    leftWrap.append(iconSpan, titleSpan);
+    head.append(leftWrap, badgeSpan);
     card.append(head);
 
-    var meta = el('div');
-    meta.style.fontSize = '12px';
-    meta.style.opacity = '0.75';
-    meta.style.marginBottom = '6px';
-    meta.innerHTML = '🛡️ End-to-End DTLS Security: <strong>' + escapeHtml(d.safetyEmojis || 'Verified') + '</strong>';
+    // Meta details
+    var meta = el('div', 'debrief-meta');
+    var timeFormatted = d.timestamp ? formatCallTimestamp(d.timestamp) : '';
+    var callerLabel = d.callerName ? 'By ' + escapeHtml(d.callerName) : '';
+    meta.innerHTML = '<span>' + (callerLabel ? callerLabel + (timeFormatted ? ' • ' : '') : '') + timeFormatted + '</span>';
+    if (d.type !== 'missed' && d.type !== 'declined' && d.safetyEmojis) {
+      meta.innerHTML += '<div class="debrief-security">🛡️ DTLS-SRTP Security: <strong>' + escapeHtml(d.safetyEmojis) + '</strong></div>';
+    }
     card.append(meta);
 
+    // Bookmarks if any
     if (d.bookmarks && d.bookmarks.length > 0) {
-      var bmTitle = el('strong');
-      bmTitle.style.fontSize = '12px';
-      bmTitle.textContent = '📌 Pinned Discussion Moments:';
+      var bmTitle = el('strong', 'debrief-bm-title');
+      bmTitle.textContent = '📌 Discussion Moments (' + d.bookmarks.length + '):';
       card.append(bmTitle);
       var ul = el('ul', 'debrief-bookmarks-list');
       d.bookmarks.forEach(function (b) {
@@ -2520,6 +2884,30 @@
       });
       card.append(ul);
     }
+
+    // Call Action Buttons in Card
+    var actions = el('div', 'debrief-card-actions');
+    var callbackBtn = el('button', 'btn-debrief-action call-back');
+    callbackBtn.type = 'button';
+    callbackBtn.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><path d="M22 16.92v3a2 2 0 0 1-2.18 2 19.79 19.79 0 0 1-8.63-3.07 19.5 19.5 0 0 1-6-6 19.79 19.79 0 0 1-3.07-8.67A2 2 0 0 1 4.11 2h3a2 2 0 0 1 2 1.72 12.84 12.84 0 0 0 .7 2.81 2 2 0 0 1-.45 2.11L8.09 9.91a16 16 0 0 0 6 6l1.27-1.27a2 2 0 0 1 2.11-.45 12.84 12.84 0 0 0 2.81.7A2 2 0 0 1 22 16.92z"></path></svg><span>' + (d.type === 'missed' ? 'Call Back' : 'Call Again') + '</span>';
+    callbackBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      if (CallManager && CallManager.startCall) {
+        CallManager.startCall();
+      }
+    });
+
+    var recentsBtn = el('button', 'btn-debrief-action recents');
+    recentsBtn.type = 'button';
+    recentsBtn.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg><span>Recents</span>';
+    recentsBtn.addEventListener('click', function (e) {
+      e.stopPropagation();
+      openCallHistoryModal();
+    });
+
+    actions.append(callbackBtn, recentsBtn);
+    card.append(actions);
+
     return card;
   }
 
