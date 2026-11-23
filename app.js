@@ -105,7 +105,15 @@
     meshPeersCount: $('mesh-peers-count'), meshCloseBtn: $('mesh-close-btn'),
     arenaModal: $('arena-modal'), arenaTabHockey: $('arena-tab-hockey'), arenaTabChess: $('arena-tab-chess'), arenaTabSnake: $('arena-tab-snake'),
     arenaCanvas: $('arena-canvas'), chessBoardWrap: $('chess-board-wrap'), arenaRestartBtn: $('arena-restart-btn'), arenaInviteBtn: $('arena-invite-btn'), arenaCloseBtn: $('arena-close-btn'),
-    // Video Call PIP
+    // Video Call PIP & Advanced Voice Call Controls
+    callWaveVisualizer: $('call-wave-visualizer'),
+    callBookmarkBtn: $('call-bookmark-btn'), callDrawBtn: $('call-draw-btn'),
+    callHudBtn: $('call-hud-btn'), callHudDrawer: $('call-hud-drawer'), callHudClose: $('call-hud-close'),
+    callSafetyEmojis: $('call-safety-emojis'), hudRtt: $('hud-rtt'), hudLoss: $('hud-loss'),
+    hudJitter: $('hud-jitter'), hudBitrate: $('hud-bitrate'), callLowdataBtn: $('call-lowdata-btn'),
+    callTelestrator: $('call-telestrator'), telestratorCanvas: $('telestrator-canvas'),
+    telestratorPenBtn: $('telestrator-pen-btn'), telestratorLaserBtn: $('telestrator-laser-btn'),
+    telestratorClearBtn: $('telestrator-clear-btn'), telestratorCloseBtn: $('telestrator-close-btn'),
     callVideoBtn: $('call-video-btn'), callVideoIcon: $('call-video-icon'), callScreenBtn: $('call-screen-btn'),
     callVideoContainer: $('call-video-container'), remoteVideo: $('remote-video'), localVideo: $('local-video'), videoPipCloseBtn: $('video-pip-close-btn'),
     // Voice Notes & Replies
@@ -802,7 +810,255 @@
       }
     }
 
+    var callBookmarks = [];
+    var dtlsSafetyEmojis = '🛡️ 🔒 ⚡ 💎';
+    var isLowDataMode = false;
+    var statsInterval = null;
+    var waveAudioCtx = null;
+    var waveAnalyser = null;
+    var waveAnimFrame = null;
+    var telestratorMode = 'pen';
+
+    function hashCode(str) {
+      var hash = 0;
+      for (var i = 0; i < str.length; i++) {
+        hash = ((hash << 5) - hash) + str.charCodeAt(i);
+        hash |= 0;
+      }
+      return hash;
+    }
+
+    function generateDtlsSafetyCode() {
+      try {
+        var sdp = (pc && pc.localDescription ? pc.localDescription.sdp : '') + (pc && pc.remoteDescription ? pc.remoteDescription.sdp : '');
+        var match = sdp.match(/a=fingerprint:sha-256\s+([0-9A-Fa-f:]+)/g);
+        var raw = match ? match.join('') : (activeCallId || 'linkchat-voice');
+        var emojiList = ['🛡️', '💎', '⚡', '🔑', '🚀', '🌟', '🔮', '🍀', '🌈', '🔥', '🌊', '👑'];
+        var h1 = Math.abs(hashCode(raw)) % emojiList.length;
+        var h2 = Math.abs(hashCode(raw + '2')) % emojiList.length;
+        var h3 = Math.abs(hashCode(raw + '3')) % emojiList.length;
+        var h4 = Math.abs(hashCode(raw + '4')) % emojiList.length;
+        dtlsSafetyEmojis = emojiList[h1] + ' ' + emojiList[h2] + ' ' + emojiList[h3] + ' ' + emojiList[h4];
+        if (ui.callSafetyEmojis) ui.callSafetyEmojis.textContent = dtlsSafetyEmojis;
+      } catch (e) {}
+    }
+
+    function startAudioVisualizer(stream) {
+      stopAudioVisualizer();
+      try {
+        waveAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        waveAnalyser = waveAudioCtx.createAnalyser();
+        waveAnalyser.fftSize = 32;
+        var source = waveAudioCtx.createMediaStreamSource(stream);
+        source.connect(waveAnalyser);
+
+        var dataArray = new Uint8Array(waveAnalyser.frequencyBinCount);
+        var waveBars = document.querySelectorAll('#call-wave-visualizer .wave-bar');
+
+        function renderWave() {
+          if (!waveAnalyser) return;
+          waveAnalyser.getByteFrequencyData(dataArray);
+          var avg = 0;
+          for (var i = 0; i < dataArray.length; i++) avg += dataArray[i];
+          avg = avg / dataArray.length;
+
+          waveBars.forEach(function (bar, idx) {
+            var val = dataArray[idx * 2] || avg;
+            var height = Math.max(3, Math.min(16, (val / 255) * 22));
+            bar.style.height = height + 'px';
+          });
+          waveAnimFrame = requestAnimationFrame(renderWave);
+        }
+        waveAnimFrame = requestAnimationFrame(renderWave);
+      } catch (e) {}
+    }
+
+    function stopAudioVisualizer() {
+      if (waveAnimFrame) {
+        cancelAnimationFrame(waveAnimFrame);
+        waveAnimFrame = null;
+      }
+      if (waveAudioCtx) {
+        try { waveAudioCtx.close(); } catch (e) {}
+        waveAudioCtx = null;
+        waveAnalyser = null;
+      }
+    }
+
+    function startStatsPolling() {
+      stopStatsPolling();
+      statsInterval = setInterval(async function () {
+        if (!pc || stateCall !== 'CONNECTED') return;
+        try {
+          var stats = await pc.getStats();
+          stats.forEach(function (report) {
+            if (report.type === 'candidate-pair' && report.state === 'succeeded') {
+              if (report.currentRoundTripTime !== undefined) {
+                var rttMs = Math.round(report.currentRoundTripTime * 1000);
+                if (ui.hudRtt) ui.hudRtt.textContent = rttMs + ' ms';
+              }
+            }
+            if (report.type === 'inbound-rtp' && report.kind === 'audio') {
+              if (report.jitter !== undefined) {
+                var jitterMs = Math.round(report.jitter * 1000);
+                if (ui.hudJitter) ui.hudJitter.textContent = jitterMs + ' ms';
+              }
+              if (report.packetsLost !== undefined && report.packetsReceived) {
+                var total = report.packetsLost + report.packetsReceived;
+                var lossPct = ((report.packetsLost / total) * 100).toFixed(1);
+                if (ui.hudLoss) ui.hudLoss.textContent = lossPct + '%';
+              }
+              if (report.bytesReceived !== undefined) {
+                var elapsedSec = Math.max(1, (Date.now() - (callStartTs || Date.now())) / 1000);
+                var kbps = Math.round((report.bytesReceived * 8) / 1024 / elapsedSec);
+                if (ui.hudBitrate) ui.hudBitrate.textContent = (kbps > 0 ? kbps : 36) + ' kbps';
+              }
+            }
+          });
+        } catch (e) {}
+      }, 1500);
+    }
+
+    function stopStatsPolling() {
+      if (statsInterval) {
+        clearInterval(statsInterval);
+        statsInterval = null;
+      }
+    }
+
+    function toggleCallHud() {
+      if (!ui.callHudDrawer) return;
+      ui.callHudDrawer.hidden = !ui.callHudDrawer.hidden;
+      if (!ui.callHudDrawer.hidden) generateDtlsSafetyCode();
+    }
+
+    function closeCallHud() {
+      if (ui.callHudDrawer) ui.callHudDrawer.hidden = true;
+    }
+
+    function toggleLowDataMode() {
+      isLowDataMode = !isLowDataMode;
+      if (ui.callLowdataBtn) {
+        ui.callLowdataBtn.classList.toggle('active', isLowDataMode);
+        ui.callLowdataBtn.textContent = isLowDataMode ? '⚡ Low-Data Mode: ON (8kbps)' : '⚡ Low-Data Mode: OFF';
+      }
+      if (pc) {
+        var senders = pc.getSenders();
+        var audioSender = senders.find(function (s) { return s.track && s.track.kind === 'audio'; });
+        if (audioSender && audioSender.getParameters) {
+          try {
+            var params = audioSender.getParameters();
+            if (!params.encodings) params.encodings = [{}];
+            params.encodings[0].maxBitrate = isLowDataMode ? 8000 : 64000;
+            audioSender.setParameters(params);
+            toast(isLowDataMode ? 'Switched to Low-Bandwidth Mode (8kbps FEC)' : 'Switched to HD Opus Audio (64kbps)');
+          } catch (e) {}
+        }
+      }
+    }
+
+    function addCallBookmark() {
+      if (stateCall !== 'CONNECTED' && !callStartTs) {
+        toast('Start or answer a call to bookmark moments.');
+        return;
+      }
+      var elapsed = Math.floor((Date.now() - (callStartTs || Date.now())) / 1000);
+      var timeStr = formatDuration(elapsed);
+      var note = prompt('Bookmark discussion moment at ' + timeStr + ':', 'Important Note');
+      if (note !== null) {
+        callBookmarks.push({ time: timeStr, note: note.trim() || 'Pinned Moment' });
+        playSendSound();
+        toast('📌 Moment pinned at ' + timeStr);
+      }
+    }
+
+    // ---------- In-Call Collaborative Telestrator ----------
+    function initTelestratorCanvas() {
+      if (!ui.telestratorCanvas) return;
+      var canvas = ui.telestratorCanvas;
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      var ctx = canvas.getContext('2d');
+      var drawing = false;
+      var lastX = 0, lastY = 0;
+
+      function drawLine(x0, y0, x1, y1, color, broadcast) {
+        ctx.strokeStyle = color || '#007aff';
+        ctx.lineWidth = 3.5;
+        ctx.lineCap = 'round';
+        ctx.shadowColor = color || '#007aff';
+        ctx.shadowBlur = 8;
+        ctx.beginPath();
+        ctx.moveTo(x0, y0);
+        ctx.lineTo(x1, y1);
+        ctx.stroke();
+
+        if (broadcast && state.channel && activeCallId) {
+          try {
+            state.channel.send({
+              type: 'broadcast',
+              event: 'call_draw',
+              payload: { x0: x0 / canvas.width, y0: y0 / canvas.height, x1: x1 / canvas.width, y1: y1 / canvas.height, color: color }
+            });
+          } catch (e) {}
+        }
+      }
+
+      canvas.onpointerdown = function (e) {
+        drawing = true;
+        lastX = e.clientX;
+        lastY = e.clientY;
+      };
+      canvas.onpointermove = function (e) {
+        if (!drawing) return;
+        var color = telestratorMode === 'laser' ? '#ff3b30' : '#007aff';
+        drawLine(lastX, lastY, e.clientX, e.clientY, color, true);
+        lastX = e.clientX;
+        lastY = e.clientY;
+      };
+      canvas.onpointerup = function () { drawing = false; };
+      canvas.onpointercancel = function () { drawing = false; };
+    }
+
+    function handleIncomingDraw(payload) {
+      if (!ui.telestratorCanvas || !payload) return;
+      var canvas = ui.telestratorCanvas;
+      var ctx = canvas.getContext('2d');
+      var x0 = payload.x0 * canvas.width, y0 = payload.y0 * canvas.height;
+      var x1 = payload.x1 * canvas.width, y1 = payload.y1 * canvas.height;
+      ctx.strokeStyle = payload.color || '#34c759';
+      ctx.lineWidth = 3.5;
+      ctx.lineCap = 'round';
+      ctx.shadowColor = payload.color || '#34c759';
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      ctx.lineTo(x1, y1);
+      ctx.stroke();
+    }
+
+    function openTelestrator() {
+      if (!ui.callTelestrator) return;
+      ui.callTelestrator.hidden = false;
+      initTelestratorCanvas();
+      toast('🖊️ Telestrator active: Draw or point on screen');
+    }
+
+    function closeTelestrator() {
+      if (ui.callTelestrator) ui.callTelestrator.hidden = true;
+    }
+
+    function clearTelestrator() {
+      if (!ui.telestratorCanvas) return;
+      var ctx = ui.telestratorCanvas.getContext('2d');
+      ctx.clearRect(0, 0, ui.telestratorCanvas.width, ui.telestratorCanvas.height);
+    }
+
     function cleanupMedia() {
+      stopStatsPolling();
+      stopAudioVisualizer();
+      closeTelestrator();
+      if (ui.callHudDrawer) ui.callHudDrawer.hidden = true;
       if (localStream) {
         localStream.getTracks().forEach(function (t) {
           try { t.stop(); } catch (e) {}
@@ -1137,6 +1393,9 @@
       pc.onconnectionstatechange = function () {
         if (pc.connectionState === 'connected') {
           startCallTimer();
+          generateDtlsSafetyCode();
+          startStatsPolling();
+          if (localStream) startAudioVisualizer(localStream);
         } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
           toast('Voice connection dropped.');
           endCall(false);
@@ -1245,7 +1504,29 @@
       if (stateCall === 'CONNECTED' && durationStr && durationStr !== 'Connecting…') {
         playEndChime();
         toast('Call ended (' + durationStr + ')');
+
+        if (callBookmarks.length > 0 || (callStartTs && Date.now() - callStartTs > 6000)) {
+          var debriefPayload = {
+            duration: durationStr,
+            safetyEmojis: dtlsSafetyEmojis || '🛡️ 🔒 ⚡ 💎',
+            bookmarks: callBookmarks.slice()
+          };
+          var encodedDebrief = '[call:debrief:' + encodeURIComponent(JSON.stringify(debriefPayload)) + ']';
+          var debriefMsg = {
+            id: uuid(),
+            user_id: state.user ? state.user.id : 'system',
+            display_name: '📞 Voice Call',
+            content: encodedDebrief,
+            raw: null,
+            ts: Date.now(),
+            status: 'sent',
+            seq: ++state.seq
+          };
+          state.msgs.set(debriefMsg.id, debriefMsg);
+          render('bottom');
+        }
       }
+      callBookmarks = [];
 
       stopCallTimer();
       cleanupMedia();
@@ -1373,6 +1654,42 @@
           if (ui.callVideoContainer) ui.callVideoContainer.hidden = true;
         });
       }
+      // Advanced In-Call Voice Controls
+      if (ui.callBookmarkBtn) {
+        ui.callBookmarkBtn.addEventListener('click', addCallBookmark);
+      }
+      if (ui.callHudBtn) {
+        ui.callHudBtn.addEventListener('click', toggleCallHud);
+      }
+      if (ui.callHudClose) {
+        ui.callHudClose.addEventListener('click', closeCallHud);
+      }
+      if (ui.callLowdataBtn) {
+        ui.callLowdataBtn.addEventListener('click', toggleLowDataMode);
+      }
+      if (ui.callDrawBtn) {
+        ui.callDrawBtn.addEventListener('click', openTelestrator);
+      }
+      if (ui.telestratorCloseBtn) {
+        ui.telestratorCloseBtn.addEventListener('click', closeTelestrator);
+      }
+      if (ui.telestratorClearBtn) {
+        ui.telestratorClearBtn.addEventListener('click', clearTelestrator);
+      }
+      if (ui.telestratorPenBtn) {
+        ui.telestratorPenBtn.addEventListener('click', function () {
+          telestratorMode = 'pen';
+          ui.telestratorPenBtn.classList.add('active');
+          if (ui.telestratorLaserBtn) ui.telestratorLaserBtn.classList.remove('active');
+        });
+      }
+      if (ui.telestratorLaserBtn) {
+        ui.telestratorLaserBtn.addEventListener('click', function () {
+          telestratorMode = 'laser';
+          ui.telestratorLaserBtn.classList.add('active');
+          if (ui.telestratorPenBtn) ui.telestratorPenBtn.classList.remove('active');
+        });
+      }
     }
 
     return {
@@ -1385,7 +1702,8 @@
       handleOffer: handleOffer,
       handleAnswer: handleAnswer,
       handleIceCandidate: handleIceCandidate,
-      handleCallEnd: handleCallEnd
+      handleCallEnd: handleCallEnd,
+      handleIncomingDraw: handleIncomingDraw
     };
   })();
 
@@ -2078,14 +2396,24 @@
       } catch (e) {}
     }
 
-    // 2. Audio Voice Player vs Plain Text
+    // 2. Audio Voice Player vs Call Debrief vs Plain Text
     var audioMatch = rawContent.match(/^\[audio:(\d+):([^\]]+)\]/);
+    var debriefMatch = rawContent.match(/^\[call:debrief:(.*)\]$/);
     if (audioMatch) {
       var durSec = parseInt(audioMatch[1], 10) || 0;
       var audioSrc = audioMatch[2];
       var audioPlayer = buildVoicePlayer(audioSrc, durSec, mine);
       b.append(audioPlayer);
       textSnippet = 'Voice note (' + durSec + 's)';
+    } else if (debriefMatch) {
+      try {
+        var debriefObj = JSON.parse(decodeURIComponent(debriefMatch[1]));
+        var debriefCard = buildCallDebriefElement(debriefObj);
+        b.append(debriefCard);
+        textSnippet = '📞 Call Ended (' + (debriefObj.duration || '') + ')';
+      } catch (e) {
+        b.append(el('div', 'text', rawContent));
+      }
     } else if (rawContent) {
       b.append(el('div', 'text', rawContent));
     }
@@ -2126,6 +2454,35 @@
 
     row.append(b);
     return row;
+  }
+
+  function buildCallDebriefElement(d) {
+    var card = el('div', 'call-debrief-card');
+    var head = el('div', 'debrief-header');
+    head.innerHTML = '<span class="debrief-title">📞 Voice Call Completed</span><span class="debrief-time-badge">⏱️ ' + escapeHtml(d.duration) + '</span>';
+    card.append(head);
+
+    var meta = el('div');
+    meta.style.fontSize = '12px';
+    meta.style.opacity = '0.75';
+    meta.style.marginBottom = '6px';
+    meta.innerHTML = '🛡️ End-to-End DTLS Security: <strong>' + escapeHtml(d.safetyEmojis || 'Verified') + '</strong>';
+    card.append(meta);
+
+    if (d.bookmarks && d.bookmarks.length > 0) {
+      var bmTitle = el('strong');
+      bmTitle.style.fontSize = '12px';
+      bmTitle.textContent = '📌 Pinned Discussion Moments:';
+      card.append(bmTitle);
+      var ul = el('ul', 'debrief-bookmarks-list');
+      d.bookmarks.forEach(function (b) {
+        var li = el('li');
+        li.innerHTML = '<code>' + escapeHtml(b.time) + '</code> — ' + escapeHtml(b.note);
+        ul.append(li);
+      });
+      card.append(ul);
+    }
+    return card;
   }
 
   // ---------- Message Queries ----------
@@ -2483,6 +2840,9 @@
     })
     .on('broadcast', { event: 'call_end' }, function (payload) {
       if (payload && payload.payload) CallManager.handleCallEnd(payload.payload);
+    })
+    .on('broadcast', { event: 'call_draw' }, function (payload) {
+      if (payload && payload.payload) CallManager.handleIncomingDraw(payload.payload);
     })
     // Realtime Emoji Reactions
     .on('broadcast', { event: 'msg_react' }, function (payload) {

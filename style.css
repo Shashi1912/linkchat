@@ -2467,6 +2467,239 @@ button:active, .room-btn-apple:active, .segment-tab:active {
   box-shadow: 0 2px 8px rgba(255, 59, 48, 0.35);
 }
 
+/* Advanced In-Call Voice Features Suite (v4.0) */
+.active-call-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  max-width: min(94%, 480px);
+  width: 100%;
+}
+
+/* 1. Dynamic Audio Waveform Visualizer */
+.call-wave-visualizer {
+  display: flex;
+  align-items: center;
+  gap: 2.5px;
+  height: 16px;
+  padding: 0 2px;
+}
+.call-wave-visualizer .wave-bar {
+  width: 2.5px;
+  height: 6px;
+  background: var(--apple-green, #34c759);
+  border-radius: 999px;
+  transition: height 0.1s ease;
+  animation: waveIdle 1.2s infinite ease-in-out;
+}
+.call-wave-visualizer .wave-bar:nth-child(1) { animation-delay: 0.1s; }
+.call-wave-visualizer .wave-bar:nth-child(2) { animation-delay: 0.3s; }
+.call-wave-visualizer .wave-bar:nth-child(3) { animation-delay: 0.2s; }
+.call-wave-visualizer .wave-bar:nth-child(4) { animation-delay: 0.4s; }
+
+@keyframes waveIdle {
+  0%, 100% { height: 4px; opacity: 0.5; }
+  50% { height: 14px; opacity: 1; }
+}
+
+/* 2. Expandable Apple Glass Diagnostic HUD Drawer */
+.call-hud-drawer {
+  pointer-events: auto;
+  width: 100%;
+  background: var(--apple-surface);
+  backdrop-filter: blur(24px);
+  -webkit-backdrop-filter: blur(24px);
+  border: 1px solid var(--apple-border);
+  border-radius: 18px;
+  padding: 12px 14px;
+  box-shadow: var(--apple-shadow-lg);
+  animation: hudSlideDown 0.3s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+@keyframes hudSlideDown {
+  from { opacity: 0; transform: translateY(-8px) scale(0.96); }
+  to { opacity: 1; transform: translateY(0) scale(1); }
+}
+
+.call-hud-top {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--apple-border);
+  margin-bottom: 10px;
+}
+
+.call-hud-security {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+.security-badge {
+  font-size: 11px;
+  font-weight: 600;
+  opacity: 0.8;
+}
+.call-safety-emojis {
+  font-size: 14px;
+  letter-spacing: 2px;
+  padding: 2px 6px;
+  border-radius: 6px;
+  background: rgba(52, 199, 89, 0.15);
+  border: 1px solid rgba(52, 199, 89, 0.3);
+}
+
+.hud-close-x {
+  border: none;
+  background: transparent;
+  color: var(--apple-label);
+  font-size: 13px;
+  cursor: pointer;
+  opacity: 0.6;
+}
+.hud-close-x:hover { opacity: 1; }
+
+.call-hud-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 8px;
+  text-align: center;
+  margin-bottom: 10px;
+}
+.hud-box {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  background: rgba(120, 120, 128, 0.08);
+  padding: 6px 4px;
+  border-radius: 8px;
+}
+.hud-box-lbl {
+  font-size: 10px;
+  opacity: 0.7;
+  text-transform: uppercase;
+}
+.hud-box-val {
+  font-size: 12px;
+  font-weight: 650;
+  color: var(--accent, #007aff);
+}
+
+.call-hud-bot {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+.hud-codec-pill {
+  font-size: 10.5px;
+  opacity: 0.75;
+  font-weight: 500;
+}
+.btn-hud-toggle {
+  font-size: 11px;
+  font-weight: 600;
+  border-radius: 999px;
+  padding: 3px 9px;
+  border: 1px solid var(--apple-border);
+  background: rgba(120, 120, 128, 0.1);
+  color: var(--apple-label);
+  cursor: pointer;
+  transition: all 0.2s ease;
+}
+.btn-hud-toggle.active {
+  background: rgba(52, 199, 89, 0.2);
+  border-color: #34c759;
+  color: #34c759;
+}
+
+/* 3. In-Call Telestrator / Canvas Overlay */
+.call-telestrator {
+  position: fixed;
+  inset: 0;
+  z-index: 1002;
+  background: rgba(0, 0, 0, 0.25);
+  backdrop-filter: blur(2px);
+  -webkit-backdrop-filter: blur(2px);
+  pointer-events: auto;
+}
+.telestrator-canvas {
+  width: 100%;
+  height: 100%;
+  display: block;
+  cursor: crosshair;
+}
+.telestrator-bar {
+  position: absolute;
+  bottom: max(24px, env(safe-area-inset-bottom));
+  left: 50%;
+  transform: translateX(-50%);
+  display: flex;
+  gap: 8px;
+  background: var(--apple-surface-solid);
+  padding: 6px 12px;
+  border-radius: 999px;
+  border: 1px solid var(--apple-border);
+  box-shadow: var(--apple-shadow-lg);
+}
+.telestrator-btn {
+  border: none;
+  background: transparent;
+  padding: 6px 10px;
+  font-size: 12px;
+  font-weight: 600;
+  border-radius: 999px;
+  color: var(--apple-label);
+  cursor: pointer;
+}
+.telestrator-btn.active {
+  background: var(--accent, #007aff);
+  color: white;
+}
+.telestrator-btn.close {
+  color: var(--apple-red, #ff3b30);
+}
+
+/* 4. In-Feed Call Debrief Summary Card */
+.call-debrief-card {
+  width: 100%;
+  max-width: 380px;
+  background: var(--apple-surface);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--apple-border);
+  border-radius: 16px;
+  padding: 12px 14px;
+  margin: 6px 0;
+  box-shadow: 0 4px 16px rgba(0,0,0,0.06);
+}
+.debrief-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 6px;
+}
+.debrief-title {
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--apple-label);
+}
+.debrief-time-badge {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 7px;
+  border-radius: 999px;
+  background: rgba(52, 199, 89, 0.15);
+  color: #34c759;
+}
+.debrief-bookmarks-list {
+  margin: 8px 0 0;
+  padding-left: 18px;
+  font-size: 12px;
+  line-height: 1.5;
+  opacity: 0.9;
+}
+
 /* ---------- Privacy Shield (Anti-Peeking & Tab Blur) ---------- */
 .privacy-shield {
   position: fixed;
