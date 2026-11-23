@@ -19,7 +19,7 @@
   var PHOTO_MAX_PX = 1600;
   var COLUMNS = 'id, room_id, user_id, display_name, content, image_path, created_at';
 
-  // Voice notes use this while drawing a message. (The call code has its own copy.)
+  // Top-level duration formatter used by voice note players and message rendering
   function formatDuration(sec) {
     var m = Math.floor(sec / 60);
     var s = sec % 60;
@@ -99,7 +99,28 @@
     // QR Code Modal
     qrBtn: $('qr-btn'), qrModal: $('qr-modal'), qrContainer: $('qr-container'),
     qrRoomName: $('qr-room-name'), qrRoomId: $('qr-room-id'), qrCopyBtn: $('qr-copy-btn'), qrCloseBtn: $('qr-close-btn'),
-    // Video Call PIP
+    // Mesh Network & Arena
+    meshBtn: $('mesh-btn'),
+    menuMeshBtn: $('menu-mesh-btn'), menuArenaBtn: $('menu-arena-btn'),
+    meshPill: $('mesh-pill'), meshStatusText: $('mesh-status-text'),
+    meshModal: $('mesh-modal'), meshTabQr: $('mesh-tab-qr'), meshTabScan: $('mesh-tab-scan'), meshTabManual: $('mesh-tab-manual'),
+    meshViewQr: $('mesh-view-qr'), meshViewScan: $('mesh-view-scan'), meshViewManual: $('mesh-view-manual'),
+    meshQrTarget: $('mesh-qr-target'), meshCopyOfferBtn: $('mesh-copy-offer-btn'),
+    meshCameraFeed: $('mesh-camera-feed'), meshCameraCanvas: $('mesh-camera-canvas'),
+    meshScanStatusText: $('mesh-scan-status-text'), meshToggleCameraBtn: $('mesh-toggle-camera-btn'),
+    meshManualInput: $('mesh-manual-input'), meshConnectManualBtn: $('mesh-connect-manual-btn'),
+    meshPeersCount: $('mesh-peers-count'), meshCloseBtn: $('mesh-close-btn'),
+    arenaModal: $('arena-modal'), arenaTabHockey: $('arena-tab-hockey'), arenaTabChess: $('arena-tab-chess'), arenaTabSnake: $('arena-tab-snake'),
+    arenaCanvas: $('arena-canvas'), chessBoardWrap: $('chess-board-wrap'), arenaRestartBtn: $('arena-restart-btn'), arenaInviteBtn: $('arena-invite-btn'), arenaCloseBtn: $('arena-close-btn'),
+    // Video Call PIP & Advanced Voice Call Controls
+    callWaveVisualizer: $('call-wave-visualizer'),
+    callBookmarkBtn: $('call-bookmark-btn'), callDrawBtn: $('call-draw-btn'),
+    callHudBtn: $('call-hud-btn'), callHudDrawer: $('call-hud-drawer'), callHudClose: $('call-hud-close'),
+    callSafetyEmojis: $('call-safety-emojis'), hudRtt: $('hud-rtt'), hudLoss: $('hud-loss'),
+    hudJitter: $('hud-jitter'), hudBitrate: $('hud-bitrate'), callLowdataBtn: $('call-lowdata-btn'),
+    callTelestrator: $('call-telestrator'), telestratorCanvas: $('telestrator-canvas'),
+    telestratorPenBtn: $('telestrator-pen-btn'), telestratorLaserBtn: $('telestrator-laser-btn'),
+    telestratorClearBtn: $('telestrator-clear-btn'), telestratorCloseBtn: $('telestrator-close-btn'),
     callVideoBtn: $('call-video-btn'), callVideoIcon: $('call-video-icon'), callScreenBtn: $('call-screen-btn'),
     callVideoContainer: $('call-video-container'), remoteVideo: $('remote-video'), localVideo: $('local-video'), videoPipCloseBtn: $('video-pip-close-btn'),
     // Voice Notes & Replies
@@ -133,6 +154,8 @@
     messages: $('messages'), olderBtn: $('older-btn'), status: $('status'), feed: $('feed'),
     composer: $('composer'), input: $('msg-input'), sendBtn: $('send-btn'), counter: $('counter'),
     attachBtn: $('attach-btn'), fileInput: $('file-input'),
+    attachSheet: $('attach-action-sheet'), attachPhotoItem: $('attach-photo-item'), attachCapsuleItem: $('attach-capsule-item'),
+    feelBar: $('feel-bar'), feelChip: $('feel-chip'), feelMenu: $('feel-menu'),
     typingIndicator: $('typing-indicator'), typingName: $('typing-name'),
     toast: $('toast'),
   };
@@ -629,6 +652,15 @@
       }
     }
 
+    // Don't show the internal feeling tag in the notification text
+    if (window.Feelings) plainText = window.Feelings.decode(plainText).rest;
+    if (window.Capsules) {
+      var capMeta = window.Capsules.decode(plainText);
+      if (capMeta) {
+        plainText = capMeta.kind === 'time' ? '⏳ Sent a Time Capsule' : '📍 Sent a Place Message';
+      }
+    }
+
     var bodyText = plainText || 'Sent a photo';
 
     // Check if the chat tab is unfocused or hidden (e.g. user in another window, app, or tab)
@@ -796,7 +828,255 @@
       }
     }
 
+    var callBookmarks = [];
+    var dtlsSafetyEmojis = '🛡️ 🔒 ⚡ 💎';
+    var isLowDataMode = false;
+    var statsInterval = null;
+    var waveAudioCtx = null;
+    var waveAnalyser = null;
+    var waveAnimFrame = null;
+    var telestratorMode = 'pen';
+
+    function hashCode(str) {
+      var hash = 0;
+      for (var i = 0; i < str.length; i++) {
+        hash = ((hash << 5) - hash) + str.charCodeAt(i);
+        hash |= 0;
+      }
+      return hash;
+    }
+
+    function generateDtlsSafetyCode() {
+      try {
+        var sdp = (pc && pc.localDescription ? pc.localDescription.sdp : '') + (pc && pc.remoteDescription ? pc.remoteDescription.sdp : '');
+        var match = sdp.match(/a=fingerprint:sha-256\s+([0-9A-Fa-f:]+)/g);
+        var raw = match ? match.join('') : (activeCallId || 'linkchat-voice');
+        var emojiList = ['🛡️', '💎', '⚡', '🔑', '🚀', '🌟', '🔮', '🍀', '🌈', '🔥', '🌊', '👑'];
+        var h1 = Math.abs(hashCode(raw)) % emojiList.length;
+        var h2 = Math.abs(hashCode(raw + '2')) % emojiList.length;
+        var h3 = Math.abs(hashCode(raw + '3')) % emojiList.length;
+        var h4 = Math.abs(hashCode(raw + '4')) % emojiList.length;
+        dtlsSafetyEmojis = emojiList[h1] + ' ' + emojiList[h2] + ' ' + emojiList[h3] + ' ' + emojiList[h4];
+        if (ui.callSafetyEmojis) ui.callSafetyEmojis.textContent = dtlsSafetyEmojis;
+      } catch (e) {}
+    }
+
+    function startAudioVisualizer(stream) {
+      stopAudioVisualizer();
+      try {
+        waveAudioCtx = new (window.AudioContext || window.webkitAudioContext)();
+        waveAnalyser = waveAudioCtx.createAnalyser();
+        waveAnalyser.fftSize = 32;
+        var source = waveAudioCtx.createMediaStreamSource(stream);
+        source.connect(waveAnalyser);
+
+        var dataArray = new Uint8Array(waveAnalyser.frequencyBinCount);
+        var waveBars = document.querySelectorAll('#call-wave-visualizer .wave-bar');
+
+        function renderWave() {
+          if (!waveAnalyser) return;
+          waveAnalyser.getByteFrequencyData(dataArray);
+          var avg = 0;
+          for (var i = 0; i < dataArray.length; i++) avg += dataArray[i];
+          avg = avg / dataArray.length;
+
+          waveBars.forEach(function (bar, idx) {
+            var val = dataArray[idx * 2] || avg;
+            var height = Math.max(3, Math.min(16, (val / 255) * 22));
+            bar.style.height = height + 'px';
+          });
+          waveAnimFrame = requestAnimationFrame(renderWave);
+        }
+        waveAnimFrame = requestAnimationFrame(renderWave);
+      } catch (e) {}
+    }
+
+    function stopAudioVisualizer() {
+      if (waveAnimFrame) {
+        cancelAnimationFrame(waveAnimFrame);
+        waveAnimFrame = null;
+      }
+      if (waveAudioCtx) {
+        try { waveAudioCtx.close(); } catch (e) {}
+        waveAudioCtx = null;
+        waveAnalyser = null;
+      }
+    }
+
+    function startStatsPolling() {
+      stopStatsPolling();
+      statsInterval = setInterval(async function () {
+        if (!pc || stateCall !== 'CONNECTED') return;
+        try {
+          var stats = await pc.getStats();
+          stats.forEach(function (report) {
+            if (report.type === 'candidate-pair' && report.state === 'succeeded') {
+              if (report.currentRoundTripTime !== undefined) {
+                var rttMs = Math.round(report.currentRoundTripTime * 1000);
+                if (ui.hudRtt) ui.hudRtt.textContent = rttMs + ' ms';
+              }
+            }
+            if (report.type === 'inbound-rtp' && report.kind === 'audio') {
+              if (report.jitter !== undefined) {
+                var jitterMs = Math.round(report.jitter * 1000);
+                if (ui.hudJitter) ui.hudJitter.textContent = jitterMs + ' ms';
+              }
+              if (report.packetsLost !== undefined && report.packetsReceived) {
+                var total = report.packetsLost + report.packetsReceived;
+                var lossPct = ((report.packetsLost / total) * 100).toFixed(1);
+                if (ui.hudLoss) ui.hudLoss.textContent = lossPct + '%';
+              }
+              if (report.bytesReceived !== undefined) {
+                var elapsedSec = Math.max(1, (Date.now() - (callStartTs || Date.now())) / 1000);
+                var kbps = Math.round((report.bytesReceived * 8) / 1024 / elapsedSec);
+                if (ui.hudBitrate) ui.hudBitrate.textContent = (kbps > 0 ? kbps : 36) + ' kbps';
+              }
+            }
+          });
+        } catch (e) {}
+      }, 1500);
+    }
+
+    function stopStatsPolling() {
+      if (statsInterval) {
+        clearInterval(statsInterval);
+        statsInterval = null;
+      }
+    }
+
+    function toggleCallHud() {
+      if (!ui.callHudDrawer) return;
+      ui.callHudDrawer.hidden = !ui.callHudDrawer.hidden;
+      if (!ui.callHudDrawer.hidden) generateDtlsSafetyCode();
+    }
+
+    function closeCallHud() {
+      if (ui.callHudDrawer) ui.callHudDrawer.hidden = true;
+    }
+
+    function toggleLowDataMode() {
+      isLowDataMode = !isLowDataMode;
+      if (ui.callLowdataBtn) {
+        ui.callLowdataBtn.classList.toggle('active', isLowDataMode);
+        ui.callLowdataBtn.textContent = isLowDataMode ? '⚡ Low-Data Mode: ON (8kbps)' : '⚡ Low-Data Mode: OFF';
+      }
+      if (pc) {
+        var senders = pc.getSenders();
+        var audioSender = senders.find(function (s) { return s.track && s.track.kind === 'audio'; });
+        if (audioSender && audioSender.getParameters) {
+          try {
+            var params = audioSender.getParameters();
+            if (!params.encodings) params.encodings = [{}];
+            params.encodings[0].maxBitrate = isLowDataMode ? 8000 : 64000;
+            audioSender.setParameters(params);
+            toast(isLowDataMode ? 'Switched to Low-Bandwidth Mode (8kbps FEC)' : 'Switched to HD Opus Audio (64kbps)');
+          } catch (e) {}
+        }
+      }
+    }
+
+    function addCallBookmark() {
+      if (stateCall !== 'CONNECTED' && !callStartTs) {
+        toast('Start or answer a call to bookmark moments.');
+        return;
+      }
+      var elapsed = Math.floor((Date.now() - (callStartTs || Date.now())) / 1000);
+      var timeStr = formatDuration(elapsed);
+      var note = prompt('Bookmark discussion moment at ' + timeStr + ':', 'Important Note');
+      if (note !== null) {
+        callBookmarks.push({ time: timeStr, note: note.trim() || 'Pinned Moment' });
+        playSendSound();
+        toast('📌 Moment pinned at ' + timeStr);
+      }
+    }
+
+    // ---------- In-Call Collaborative Telestrator ----------
+    function initTelestratorCanvas() {
+      if (!ui.telestratorCanvas) return;
+      var canvas = ui.telestratorCanvas;
+      canvas.width = window.innerWidth;
+      canvas.height = window.innerHeight;
+      var ctx = canvas.getContext('2d');
+      var drawing = false;
+      var lastX = 0, lastY = 0;
+
+      function drawLine(x0, y0, x1, y1, color, broadcast) {
+        ctx.strokeStyle = color || '#007aff';
+        ctx.lineWidth = 3.5;
+        ctx.lineCap = 'round';
+        ctx.shadowColor = color || '#007aff';
+        ctx.shadowBlur = 8;
+        ctx.beginPath();
+        ctx.moveTo(x0, y0);
+        ctx.lineTo(x1, y1);
+        ctx.stroke();
+
+        if (broadcast && state.channel && activeCallId) {
+          try {
+            state.channel.send({
+              type: 'broadcast',
+              event: 'call_draw',
+              payload: { x0: x0 / canvas.width, y0: y0 / canvas.height, x1: x1 / canvas.width, y1: y1 / canvas.height, color: color }
+            });
+          } catch (e) {}
+        }
+      }
+
+      canvas.onpointerdown = function (e) {
+        drawing = true;
+        lastX = e.clientX;
+        lastY = e.clientY;
+      };
+      canvas.onpointermove = function (e) {
+        if (!drawing) return;
+        var color = telestratorMode === 'laser' ? '#ff3b30' : '#007aff';
+        drawLine(lastX, lastY, e.clientX, e.clientY, color, true);
+        lastX = e.clientX;
+        lastY = e.clientY;
+      };
+      canvas.onpointerup = function () { drawing = false; };
+      canvas.onpointercancel = function () { drawing = false; };
+    }
+
+    function handleIncomingDraw(payload) {
+      if (!ui.telestratorCanvas || !payload) return;
+      var canvas = ui.telestratorCanvas;
+      var ctx = canvas.getContext('2d');
+      var x0 = payload.x0 * canvas.width, y0 = payload.y0 * canvas.height;
+      var x1 = payload.x1 * canvas.width, y1 = payload.y1 * canvas.height;
+      ctx.strokeStyle = payload.color || '#34c759';
+      ctx.lineWidth = 3.5;
+      ctx.lineCap = 'round';
+      ctx.shadowColor = payload.color || '#34c759';
+      ctx.shadowBlur = 8;
+      ctx.beginPath();
+      ctx.moveTo(x0, y0);
+      ctx.lineTo(x1, y1);
+      ctx.stroke();
+    }
+
+    function openTelestrator() {
+      if (!ui.callTelestrator) return;
+      ui.callTelestrator.hidden = false;
+      initTelestratorCanvas();
+      toast('🖊️ Telestrator active: Draw or point on screen');
+    }
+
+    function closeTelestrator() {
+      if (ui.callTelestrator) ui.callTelestrator.hidden = true;
+    }
+
+    function clearTelestrator() {
+      if (!ui.telestratorCanvas) return;
+      var ctx = ui.telestratorCanvas.getContext('2d');
+      ctx.clearRect(0, 0, ui.telestratorCanvas.width, ui.telestratorCanvas.height);
+    }
+
     function cleanupMedia() {
+      stopStatsPolling();
+      stopAudioVisualizer();
+      closeTelestrator();
+      if (ui.callHudDrawer) ui.callHudDrawer.hidden = true;
       if (localStream) {
         localStream.getTracks().forEach(function (t) {
           try { t.stop(); } catch (e) {}
@@ -1131,6 +1411,9 @@
       pc.onconnectionstatechange = function () {
         if (pc.connectionState === 'connected') {
           startCallTimer();
+          generateDtlsSafetyCode();
+          startStatsPolling();
+          if (localStream) startAudioVisualizer(localStream);
         } else if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
           toast('Voice connection dropped.');
           endCall(false);
@@ -1239,7 +1522,29 @@
       if (stateCall === 'CONNECTED' && durationStr && durationStr !== 'Connecting…') {
         playEndChime();
         toast('Call ended (' + durationStr + ')');
+
+        if (callBookmarks.length > 0 || (callStartTs && Date.now() - callStartTs > 6000)) {
+          var debriefPayload = {
+            duration: durationStr,
+            safetyEmojis: dtlsSafetyEmojis || '🛡️ 🔒 ⚡ 💎',
+            bookmarks: callBookmarks.slice()
+          };
+          var encodedDebrief = '[call:debrief:' + encodeURIComponent(JSON.stringify(debriefPayload)) + ']';
+          var debriefMsg = {
+            id: uuid(),
+            user_id: state.user ? state.user.id : 'system',
+            display_name: '📞 Voice Call',
+            content: encodedDebrief,
+            raw: null,
+            ts: Date.now(),
+            status: 'sent',
+            seq: ++state.seq
+          };
+          state.msgs.set(debriefMsg.id, debriefMsg);
+          render('bottom');
+        }
       }
+      callBookmarks = [];
 
       stopCallTimer();
       cleanupMedia();
@@ -1367,6 +1672,42 @@
           if (ui.callVideoContainer) ui.callVideoContainer.hidden = true;
         });
       }
+      // Advanced In-Call Voice Controls
+      if (ui.callBookmarkBtn) {
+        ui.callBookmarkBtn.addEventListener('click', addCallBookmark);
+      }
+      if (ui.callHudBtn) {
+        ui.callHudBtn.addEventListener('click', toggleCallHud);
+      }
+      if (ui.callHudClose) {
+        ui.callHudClose.addEventListener('click', closeCallHud);
+      }
+      if (ui.callLowdataBtn) {
+        ui.callLowdataBtn.addEventListener('click', toggleLowDataMode);
+      }
+      if (ui.callDrawBtn) {
+        ui.callDrawBtn.addEventListener('click', openTelestrator);
+      }
+      if (ui.telestratorCloseBtn) {
+        ui.telestratorCloseBtn.addEventListener('click', closeTelestrator);
+      }
+      if (ui.telestratorClearBtn) {
+        ui.telestratorClearBtn.addEventListener('click', clearTelestrator);
+      }
+      if (ui.telestratorPenBtn) {
+        ui.telestratorPenBtn.addEventListener('click', function () {
+          telestratorMode = 'pen';
+          ui.telestratorPenBtn.classList.add('active');
+          if (ui.telestratorLaserBtn) ui.telestratorLaserBtn.classList.remove('active');
+        });
+      }
+      if (ui.telestratorLaserBtn) {
+        ui.telestratorLaserBtn.addEventListener('click', function () {
+          telestratorMode = 'laser';
+          ui.telestratorLaserBtn.classList.add('active');
+          if (ui.telestratorPenBtn) ui.telestratorPenBtn.classList.remove('active');
+        });
+      }
     }
 
     return {
@@ -1379,7 +1720,8 @@
       handleOffer: handleOffer,
       handleAnswer: handleAnswer,
       handleIceCandidate: handleIceCandidate,
-      handleCallEnd: handleCallEnd
+      handleCallEnd: handleCallEnd,
+      handleIncomingDraw: handleIncomingDraw
     };
   })();
 
@@ -2058,7 +2400,20 @@
     var rawContent = m.content || '';
     var textSnippet = rawContent;
 
-    // 1. Quoted Reply Box (iMessage Style)
+    // 1. Quoted Reply Box & Feelings
+    function extractFeeling() {
+      if (!window.Feelings) return;
+      var feelInfo = window.Feelings.decode(rawContent);
+      if (feelInfo.feeling) {
+        var feelTag = el('div', 'feel-tag', feelInfo.feeling.emoji + ' ' + feelInfo.feeling.label);
+        b.append(feelTag);
+        rawContent = feelInfo.rest;
+        textSnippet = rawContent;
+      }
+    }
+
+    extractFeeling();
+
     var replyMatch = rawContent.match(/^\[reply:([^:]+):([^\]]+)\]/);
     if (replyMatch) {
       try {
@@ -2072,14 +2427,31 @@
       } catch (e) {}
     }
 
-    // 2. Audio Voice Player vs Plain Text
+    extractFeeling();
+
+    // 2. Audio Voice Player vs Call Debrief vs Cryptographic Capsule vs Plain Text
     var audioMatch = rawContent.match(/^\[audio:(\d+):([^\]]+)\]/);
+    var debriefMatch = rawContent.match(/^\[call:debrief:(.*)\]$/);
+    var capsuleMatch = window.Capsules && window.Capsules.decode(rawContent);
     if (audioMatch) {
       var durSec = parseInt(audioMatch[1], 10) || 0;
       var audioSrc = audioMatch[2];
       var audioPlayer = buildVoicePlayer(audioSrc, durSec, mine);
       b.append(audioPlayer);
       textSnippet = 'Voice note (' + durSec + 's)';
+    } else if (debriefMatch) {
+      try {
+        var debriefObj = JSON.parse(decodeURIComponent(debriefMatch[1]));
+        var debriefCard = buildCallDebriefElement(debriefObj);
+        b.append(debriefCard);
+        textSnippet = '📞 Call Ended (' + (debriefObj.duration || '') + ')';
+      } catch (e) {
+        b.append(el('div', 'text', rawContent));
+      }
+    } else if (window.Capsules && window.Capsules.isCapsule(rawContent)) {
+      var capsuleCard = window.Capsules.renderCard(rawContent);
+      b.append(capsuleCard);
+      textSnippet = 'Capsule ⏳📍';
     } else if (rawContent) {
       b.append(el('div', 'text', rawContent));
     }
@@ -2120,6 +2492,35 @@
 
     row.append(b);
     return row;
+  }
+
+  function buildCallDebriefElement(d) {
+    var card = el('div', 'call-debrief-card');
+    var head = el('div', 'debrief-header');
+    head.innerHTML = '<span class="debrief-title">📞 Voice Call Completed</span><span class="debrief-time-badge">⏱️ ' + escapeHtml(d.duration) + '</span>';
+    card.append(head);
+
+    var meta = el('div');
+    meta.style.fontSize = '12px';
+    meta.style.opacity = '0.75';
+    meta.style.marginBottom = '6px';
+    meta.innerHTML = '🛡️ End-to-End DTLS Security: <strong>' + escapeHtml(d.safetyEmojis || 'Verified') + '</strong>';
+    card.append(meta);
+
+    if (d.bookmarks && d.bookmarks.length > 0) {
+      var bmTitle = el('strong');
+      bmTitle.style.fontSize = '12px';
+      bmTitle.textContent = '📌 Pinned Discussion Moments:';
+      card.append(bmTitle);
+      var ul = el('ul', 'debrief-bookmarks-list');
+      d.bookmarks.forEach(function (b) {
+        var li = el('li');
+        li.innerHTML = '<code>' + escapeHtml(b.time) + '</code> — ' + escapeHtml(b.note);
+        ul.append(li);
+      });
+      card.append(ul);
+    }
+    return card;
   }
 
   // ---------- Message Queries ----------
@@ -2479,6 +2880,9 @@
     .on('broadcast', { event: 'call_end' }, function (payload) {
       if (payload && payload.payload) CallManager.handleCallEnd(payload.payload);
     })
+    .on('broadcast', { event: 'call_draw' }, function (payload) {
+      if (payload && payload.payload) CallManager.handleIncomingDraw(payload.payload);
+    })
     // Realtime Emoji Reactions
     .on('broadcast', { event: 'msg_react' }, function (payload) {
       if (payload && payload.payload) {
@@ -2604,8 +3008,77 @@
     ui.input.style.height = 'auto';
     ui.input.style.height = Math.min(ui.input.scrollHeight + 2, 130) + 'px';
   }
+  // ---------- Feeling (sender confirms; never attached automatically) ----------
+  // chosen: the feeling to send. fromSuggestion: true when the sender tapped
+  // the suggestion (it follows the text); false when picked from the list (kept).
+  var feel = { chosen: null, fromSuggestion: false };
+
+  function renderFeelBar() {
+    if (!window.Feelings) return;
+    var text = ui.input.value.trim();
+    if (text.length < 3) {
+      feel.chosen = null;
+      ui.feelBar.hidden = true;
+      ui.feelMenu.hidden = true;
+      return;
+    }
+    ui.feelBar.hidden = false;
+    var sug = window.Feelings.suggest(text);
+    if (feel.chosen) {
+      ui.feelChip.textContent = 'Feeling: ' + feel.chosen.emoji + ' ' + feel.chosen.label + ' · change';
+    } else if (sug) {
+      ui.feelChip.textContent = 'Sounds ' + sug.label.toLowerCase() + ' ' + sug.emoji + ' · tap to add';
+    } else {
+      ui.feelChip.textContent = '+ Add a feeling';
+    }
+  }
+
+  function openFeelMenu() {
+    ui.feelMenu.replaceChildren();
+    var none = el('button', 'feel-option', 'No feeling');
+    none.type = 'button';
+    none.addEventListener('click', function () {
+      feel.chosen = null;
+      ui.feelMenu.hidden = true;
+      renderFeelBar();
+    });
+    ui.feelMenu.append(none);
+    window.Feelings.LIST.forEach(function (f) {
+      var opt = el('button', 'feel-option', f.emoji + ' ' + f.label);
+      opt.type = 'button';
+      if (feel.chosen && feel.chosen.key === f.key) opt.classList.add('selected');
+      opt.addEventListener('click', function () {
+        feel.chosen = f;
+        feel.fromSuggestion = false;
+        ui.feelMenu.hidden = true;
+        renderFeelBar();
+      });
+      ui.feelMenu.append(opt);
+    });
+    ui.feelMenu.hidden = false;
+  }
+
+  ui.feelChip.addEventListener('click', function () {
+    var sug = window.Feelings && window.Feelings.suggest(ui.input.value);
+    if (!feel.chosen && sug) {
+      feel.chosen = sug;   // the sender tapped the suggestion: confirmed
+      feel.fromSuggestion = true;
+      renderFeelBar();
+      return;
+    }
+    if (ui.feelMenu.hidden) openFeelMenu(); else ui.feelMenu.hidden = true;
+  });
+
+  // Tapping anywhere else closes the feeling list
+  document.addEventListener('click', function (e) {
+    if (!ui.feelMenu.hidden && !ui.feelBar.contains(e.target)) ui.feelMenu.hidden = true;
+  });
+
   ui.input.addEventListener('input', function () {
     updateComposer();
+    // Typing changes the text, so a suggestion the sender confirmed no longer applies
+    if (feel.fromSuggestion) { feel.chosen = null; feel.fromSuggestion = false; }
+    renderFeelBar();
     if (ui.input.value.trim().length > 0) {
       sendTypingSignal();
     } else {
@@ -2646,6 +3119,11 @@
       clearReplyingTo();
     }
 
+    if (feel.chosen && window.Feelings) {
+      text = window.Feelings.encode(feel.chosen.key) + text;  // goes after any [reply:] tag
+    }
+    feel.chosen = null;
+
     var m = {
       id: uuid(), user_id: state.user.id, display_name: state.name, content: text,
       raw: null, ts: Date.now(), status: 'sending', seq: ++state.seq,
@@ -2653,6 +3131,7 @@
     state.msgs.set(m.id, m);
     ui.input.value = '';
     updateComposer();
+    renderFeelBar();
     render('bottom');
     playSendSound();
     insert(m);
@@ -2687,9 +3166,14 @@
   }
 
   var isChoosingFile = false;
-  ui.attachBtn.addEventListener('click', function () {
-    isChoosingFile = true;
-    ui.fileInput.click();
+  ui.attachBtn.addEventListener('click', function (e) {
+    e.stopPropagation();
+    var pickPhoto = function () { isChoosingFile = true; ui.fileInput.click(); };
+    if (window.Capsules) {
+      window.Capsules.openAttachMenu({ onPhoto: pickPhoto });
+    } else {
+      pickPhoto();
+    }
   });
 
   ui.fileInput.addEventListener('change', async function () {
@@ -2727,6 +3211,28 @@
     m.status = 'sending';
     m.error = null;
     render('auto');
+
+    // Broadcast across Serverless Offline Mesh Network (Zero-Internet)
+    if (window.MeshManager) {
+      window.MeshManager.broadcast({
+        type: 'chat_message',
+        id: m.id,
+        room_id: state.room,
+        user_id: m.user_id,
+        display_name: m.display_name,
+        content: m.content,
+        ts: m.ts || Date.now()
+      });
+    }
+
+    // In 100% Airplane Mode / Offline without Internet
+    if (!navigator.onLine) {
+      m.status = 'sent';
+      render('auto');
+      toast('Sent via Offline Mesh Network ⚡');
+      return;
+    }
+
     try {
       if (m.blob && !m.uploaded) await uploadPhoto(m);
 
@@ -3074,6 +3580,7 @@
     state.roomDisplayName = data.room_name || roomId;
     state.roomKey = key; // In-memory only — never written to disk or localStorage!
     markRoomAsRead(roomId);
+    addLocalUserRoom({ id: roomId, name: state.roomDisplayName, created_at: new Date().toISOString() });
 
     // Security: Immediately scrub secret key from URL so it is never exposed in address bar or history
     try {
@@ -3150,6 +3657,7 @@
         state.room = roomId;
         state.roomDisplayName = roomName;
         state.roomKey = key; // In-memory only!
+        addLocalUserRoom({ id: roomId, name: roomName, created_at: new Date().toISOString() });
         if (ui.newRoomKey) ui.newRoomKey.value = '';
         enterChat();
       } catch (err) {
@@ -3212,11 +3720,11 @@
     var count = unreadCountsByRoom[roomId] || 0;
     var countStr = count > 0 ? (' • <strong class="unread-text">' + count + ' unread</strong>') : '';
     if (ui.dropdownTriggerSub) {
-      ui.dropdownTriggerSub.innerHTML = (roomId ? ('#' + roomId) : 'Join with a room ID and key, or create one') + countStr;
+      ui.dropdownTriggerSub.innerHTML = (roomId ? ('#' + roomId) : 'Enter room ID & key below to join') + countStr;
     }
     if (ui.dropdownTriggerAvatar) {
-      ui.dropdownTriggerAvatar.textContent = isPrivate ? (roomName || roomId).charAt(0).toUpperCase() : '💬';
-      ui.dropdownTriggerAvatar.style.background = isPrivate ? 'linear-gradient(135deg, #af52de, #5856d6)' : 'var(--apple-blue-gradient)';
+      ui.dropdownTriggerAvatar.textContent = roomId ? (roomName || roomId).charAt(0).toUpperCase() : '🔒';
+      ui.dropdownTriggerAvatar.style.background = roomId ? 'linear-gradient(135deg, #af52de, #5856d6)' : 'rgba(120, 120, 128, 0.2)';
     }
     if (ui.dropdownDeleteBtn) {
       ui.dropdownDeleteBtn.hidden = !isPrivate || !roomId || roomId === 'general';
@@ -3333,28 +3841,74 @@
       showRoomPicker();
     }
 
+    removeLocalUserRoom(roomId);
     toast('Room deleted successfully.');
     closeDeleteRoomModal();
     selectDropdownRoom(null, 'No room selected', true);
     loadRoomsList();
   }
 
+  // Local unlocked rooms cache per display name
+  function getUserUnlockedRoomsKey() {
+    var uname = (state.name || '').trim().toLowerCase();
+    return 'linkchat.unlocked_rooms_' + encodeURIComponent(uname);
+  }
+
+  function getLocalUserRooms() {
+    try {
+      var key = getUserUnlockedRoomsKey();
+      return JSON.parse(load(key) || '[]');
+    } catch (e) {
+      return [];
+    }
+  }
+
+  function addLocalUserRoom(roomObj) {
+    if (!roomObj || !roomObj.id) return;
+    try {
+      var rooms = getLocalUserRooms();
+      if (!rooms.some(function (r) { return r.id === roomObj.id; })) {
+        rooms.unshift(roomObj);
+        store(getUserUnlockedRoomsKey(), JSON.stringify(rooms));
+      }
+    } catch (e) {}
+  }
+
+  function removeLocalUserRoom(roomId) {
+    try {
+      var rooms = getLocalUserRooms().filter(function (r) { return r.id !== roomId; });
+      store(getUserUnlockedRoomsKey(), JSON.stringify(rooms));
+    } catch (e) {}
+  }
+
   async function loadRoomsList() {
     var tilesContainer = $('rooms-list-container');
     var dropList = $('dropdown-items-list');
-    if (tilesContainer) tilesContainer.innerHTML = '<div class="rooms-loading">Loading active rooms…</div>';
-    if (dropList) dropList.innerHTML = '<div class="rooms-loading">Loading rooms…</div>';
+    if (tilesContainer) tilesContainer.innerHTML = '<div class="rooms-loading">Loading your rooms…</div>';
+    if (dropList) dropList.innerHTML = '<div class="rooms-loading">Loading your rooms…</div>';
 
     var rooms = [];
     unreadCountsByRoom = {};
 
-    try {
-      var res = await sb.rpc('my_rooms');
-      if (!res.error && res.data) {
-        rooms = res.data;
+    if (sb && state.user) {
+      try {
+        var res = await sb.rpc('my_rooms');
+        if (!res.error && Array.isArray(res.data)) {
+          rooms = res.data;
+        }
+      } catch (e) {
+        console.warn('Could not load member rooms from server:', e);
       }
-    } catch (e) {
-      console.warn('Could not load rooms:', e);
+    }
+
+    // Merge with rooms unlocked specifically by this user name on this device
+    var localRooms = getLocalUserRooms();
+    if (localRooms && localRooms.length) {
+      localRooms.forEach(function (lr) {
+        if (!rooms.some(function (r) { return r.id === lr.id; })) {
+          rooms.push(lr);
+        }
+      });
     }
 
     try {
@@ -3395,13 +3949,6 @@
 
   function renderRoomsDirectory(rooms, msgCounts) {
     msgCounts = msgCounts || unreadCountsByRoom || {};
-    var genCount = msgCounts['general'] || 0;
-    var genSub = genCount > 0
-      ? 'Public community room • <strong class="unread-text">' + genCount + ' unread</strong>'
-      : 'Public community room';
-    var genBadgeHtml = genCount > 0
-      ? '<span class="room-tile-count-badge unread" title="' + genCount + ' unread messages">● ' + genCount + ' new</span>'
-      : '';
 
     // 1. Populate Tiles view
     var tilesContainer = $('rooms-list-container');
@@ -3409,7 +3956,7 @@
       tilesContainer.innerHTML = '';
 
       if (!rooms || !rooms.length) {
-        tilesContainer.innerHTML = '<div class="rooms-loading">No rooms yet. Join one with its ID and key, or create a room.</div>';
+        tilesContainer.innerHTML = '<div class="rooms-loading">No rooms unlocked yet. Enter a room ID and key below to join.</div>';
       }
 
       if (rooms && rooms.length) {
@@ -3431,12 +3978,14 @@
             '</div>' +
             rBadgeHtml +
             '<span class="room-tile-badge locked">🔒 KEY</span>' +
-            '<button type="button" class="btn-tile-delete" title="Delete room" aria-label="Delete room ' + escapeHtml(r.name || r.id) + '">' +
-              '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
-                '<polyline points="3 6 5 6 21 6"></polyline>' +
-                '<path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>' +
-              '</svg>' +
-            '</button>';
+            (r.id !== 'general' ? (
+              '<button type="button" class="btn-tile-delete" title="Delete room" aria-label="Delete room ' + escapeHtml(r.name || r.id) + '">' +
+                '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">' +
+                  '<polyline points="3 6 5 6 21 6"></polyline>' +
+                  '<path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>' +
+                '</svg>' +
+              '</button>'
+            ) : '');
 
           card.onclick = function (e) {
             var delBtn = e.target.closest('.btn-tile-delete');
@@ -3458,7 +4007,7 @@
       dropList.innerHTML = '';
 
       if (!rooms || !rooms.length) {
-        dropList.innerHTML = '<div class="rooms-loading">No rooms yet. Join one with its ID and key, or create a room.</div>';
+        dropList.innerHTML = '<div class="rooms-loading">No rooms unlocked yet. Enter a room ID and key below to join.</div>';
       }
 
       if (rooms && rooms.length) {
@@ -3505,13 +4054,13 @@
           };
 
           row.appendChild(itemBtn);
-          if (r.id !== 'general') row.appendChild(delBtn);  // General cannot be deleted
+          if (r.id !== 'general') row.appendChild(delBtn);
           dropList.appendChild(row);
         });
       }
     }
 
-    // The selection must be one of this person's rooms
+    // Refresh trigger sub with latest count
     var stillThere = (rooms || []).some(function (r) { return r.id === currentSelectedRoom.id; });
     if (!stillThere) {
       currentSelectedRoom = rooms && rooms.length
@@ -3658,7 +4207,7 @@
   if (ui.dropdownEnterBtn) {
     ui.dropdownEnterBtn.addEventListener('click', function () {
       if (!currentSelectedRoom.id) {
-        toast('Join a room with its ID and key, or create one.');
+        toast('Enter a room ID and key below to join.');
         return;
       }
       handleRoomTileClick(currentSelectedRoom.id, currentSelectedRoom.name);
@@ -3763,6 +4312,195 @@
     });
   }
 
+  // =========================================================================
+  // LINKCHAT v4.0 — FEATURE 1: SERVERLESS OFFLINE MESH NETWORK
+  // =========================================================================
+  var meshOfferCode = null;
+
+  async function openMeshModal() {
+    if (!ui.meshModal) return;
+    ui.meshModal.hidden = false;
+    await switchMeshTab('qr');
+    updateMeshPeersUI();
+  }
+
+  function closeMeshModal() {
+    if (!ui.meshModal) return;
+    ui.meshModal.hidden = true;
+    if (window.MeshManager) {
+      window.MeshManager.stopQRScanner();
+    }
+  }
+
+  function updateMeshPeersUI() {
+    var count = window.MeshManager ? window.MeshManager.getConnectedCount() : 0;
+    if (ui.meshPeersCount) ui.meshPeersCount.textContent = count + ' Connected';
+    if (ui.meshStatusText) {
+      ui.meshStatusText.textContent = count > 0 ? ('Mesh: ' + count + ' P2P') : 'Mesh: Ready';
+    }
+  }
+
+  async function switchMeshTab(tab) {
+    if (ui.meshTabQr) ui.meshTabQr.classList.toggle('active', tab === 'qr');
+    if (ui.meshTabScan) ui.meshTabScan.classList.toggle('active', tab === 'scan');
+    if (ui.meshTabManual) ui.meshTabManual.classList.toggle('active', tab === 'manual');
+
+    if (ui.meshViewQr) ui.meshViewQr.hidden = tab !== 'qr';
+    if (ui.meshViewScan) ui.meshViewScan.hidden = tab !== 'scan';
+    if (ui.meshViewManual) ui.meshViewManual.hidden = tab !== 'manual';
+
+    if (tab === 'qr') {
+      if (window.MeshManager) window.MeshManager.stopQRScanner();
+      await generateMyMeshQR();
+    } else if (tab === 'scan') {
+      startMeshCameraScan();
+    } else {
+      if (window.MeshManager) window.MeshManager.stopQRScanner();
+    }
+  }
+
+  async function generateMyMeshQR() {
+    if (!window.MeshManager || !ui.meshQrTarget || typeof qrcode !== 'function') return;
+    ui.meshQrTarget.innerHTML = '<div style="padding:24px; font-size:12.5px; opacity:0.75;">Generating P2P Optical Offer SDP…</div>';
+    try {
+      meshOfferCode = await window.MeshManager.createOfferPairing();
+      var qr = qrcode(0, 'M');
+      qr.addData('mesh:' + meshOfferCode);
+      qr.make();
+      ui.meshQrTarget.innerHTML = qr.createSvgTag(5, 4);
+    } catch (e) {
+      ui.meshQrTarget.innerHTML = '<div style="padding:16px; font-size:12px; color:var(--apple-red);">SDP Generation note: ' + escapeHtml(e.message) + '</div>';
+    }
+  }
+
+  async function startMeshCameraScan() {
+    if (!window.MeshManager || !ui.meshCameraFeed) return;
+    try {
+      if (ui.meshScanStatusText) ui.meshScanStatusText.textContent = 'Point camera at peer device’s LinkChat QR…';
+      await window.MeshManager.startQRScanner(ui.meshCameraFeed, async function (scannedCode) {
+        if (!scannedCode) return;
+        playSendSound();
+        toast('Peer QR detected! Establishing direct P2P DataChannel…');
+        var payload = scannedCode.replace(/^mesh:/, '');
+        try {
+          await window.MeshManager.createAnswerPairing(payload);
+          toast('P2P Mesh Handshake complete! ⚡');
+          updateMeshPeersUI();
+          closeMeshModal();
+        } catch (err) {
+          toast('Handshake note: ' + err.message);
+        }
+      });
+    } catch (err) {
+      if (ui.meshScanStatusText) {
+        ui.meshScanStatusText.textContent = 'Camera note: ' + err.message + '. Use Manual Key tab below.';
+      }
+    }
+  }
+
+  if (ui.meshBtn) ui.meshBtn.addEventListener('click', openMeshModal);
+  if (ui.meshPill) ui.meshPill.addEventListener('click', openMeshModal);
+  if (ui.meshCloseBtn) ui.meshCloseBtn.addEventListener('click', closeMeshModal);
+
+  if (ui.meshTabQr) ui.meshTabQr.addEventListener('click', function () { switchMeshTab('qr'); });
+  if (ui.meshTabScan) ui.meshTabScan.addEventListener('click', function () { switchMeshTab('scan'); });
+  if (ui.meshTabManual) ui.meshTabManual.addEventListener('click', function () { switchMeshTab('manual'); });
+
+  if (ui.meshCopyOfferBtn) {
+    ui.meshCopyOfferBtn.addEventListener('click', async function () {
+      if (!meshOfferCode) await generateMyMeshQR();
+      if (meshOfferCode && navigator.clipboard) {
+        try {
+          await navigator.clipboard.writeText('mesh:' + meshOfferCode);
+          toast('Handshake Offer Code copied to clipboard! 📋');
+        } catch (e) {
+          toast('Copy code manually from input.');
+        }
+      }
+    });
+  }
+
+  if (ui.meshConnectManualBtn) {
+    ui.meshConnectManualBtn.addEventListener('click', async function () {
+      var val = (ui.meshManualInput && ui.meshManualInput.value || '').trim();
+      if (!val) { toast('Please paste peer handshake code.'); return; }
+      val = val.replace(/^mesh:/, '');
+      try {
+        ui.meshConnectManualBtn.disabled = true;
+        ui.meshConnectManualBtn.textContent = 'Connecting…';
+        await window.MeshManager.createAnswerPairing(val);
+        toast('Connected to peer via direct WebRTC DataChannel! ⚡');
+        updateMeshPeersUI();
+        closeMeshModal();
+      } catch (e) {
+        toast('Connection note: ' + e.message);
+      } finally {
+        ui.meshConnectManualBtn.disabled = false;
+        ui.meshConnectManualBtn.textContent = 'Connect to Peer';
+      }
+    });
+  }
+
+  if (ui.meshToggleCameraBtn) {
+    ui.meshToggleCameraBtn.addEventListener('click', function () {
+      startMeshCameraScan();
+    });
+  }
+
+  // =========================================================================
+  // LINKCHAT v4.0 — FEATURE 2: IN-CHAT GAMING ARENA (LAST PRIORITY)
+  // =========================================================================
+  function openArenaModal(gameName) {
+    if (!ui.arenaModal) return;
+    ui.arenaModal.hidden = false;
+    if (window.GameArena) {
+      window.GameArena.init();
+      if (gameName) window.GameArena.switchGame(gameName);
+    }
+  }
+
+  function closeArenaModal() {
+    if (!ui.arenaModal) return;
+    ui.arenaModal.hidden = true;
+    if (window.GameArena) {
+      window.GameArena.stop();
+    }
+  }
+
+  if (ui.arenaCloseBtn) ui.arenaCloseBtn.addEventListener('click', closeArenaModal);
+  if (ui.arenaTabHockey) ui.arenaTabHockey.addEventListener('click', function () {
+    if (window.GameArena) window.GameArena.switchGame('hockey');
+  });
+  if (ui.arenaTabChess) ui.arenaTabChess.addEventListener('click', function () {
+    if (window.GameArena) window.GameArena.switchGame('chess');
+  });
+  if (ui.arenaTabSnake) ui.arenaTabSnake.addEventListener('click', function () {
+    if (window.GameArena) window.GameArena.switchGame('snake');
+  });
+  if (ui.arenaRestartBtn) ui.arenaRestartBtn.addEventListener('click', function () {
+    if (window.GameArena) window.GameArena.restart();
+  });
+  if (ui.arenaInviteBtn) ui.arenaInviteBtn.addEventListener('click', function () {
+    var inv = '🎮 Let’s play in the Gaming Arena! Tap More (...) -> Gaming Arena to duel.';
+    ui.input.value = inv;
+    closeArenaModal();
+    ui.composer.requestSubmit();
+  });
+
+  // Mobile More Menu Actions for v4 Features
+  if (ui.menuMeshBtn) {
+    ui.menuMeshBtn.addEventListener('click', function () {
+      closeHeaderMenu();
+      openMeshModal();
+    });
+  }
+  if (ui.menuArenaBtn) {
+    ui.menuArenaBtn.addEventListener('click', function () {
+      closeHeaderMenu();
+      openArenaModal('hockey');
+    });
+  }
+
   // Delete Room Confirmation Modal Form
   if (ui.deleteRoomForm) {
     ui.deleteRoomForm.addEventListener('submit', async function (e) {
@@ -3798,17 +4536,27 @@
 
   var changeNameBtn = $('change-name-btn');
   if (changeNameBtn) {
-    changeNameBtn.addEventListener('click', function () {
+    changeNameBtn.addEventListener('click', async function () {
       store(NAME_KEY, null);
+      store(ROOM_KEY, null);
+      store(ROOM_NAME_KEY, null);
+      store(ROOM_KEY_PASS, null);
       state.name = '';
+      try { await sb.auth.signOut(); } catch (e) {}
+      state.user = null;
       showJoin('');
     });
   }
 
   if (ui.roomBackBtn) {
-    ui.roomBackBtn.addEventListener('click', function () {
+    ui.roomBackBtn.addEventListener('click', async function () {
       store(NAME_KEY, null);
+      store(ROOM_KEY, null);
+      store(ROOM_NAME_KEY, null);
+      store(ROOM_KEY_PASS, null);
       state.name = '';
+      try { await sb.auth.signOut(); } catch (e) {}
+      state.user = null;
       showJoin('');
     });
   }
@@ -4017,8 +4765,19 @@
     try {
       getAudioContext();
 
+      var prevName = load(NAME_KEY);
+      var isDifferentUser = !prevName || (prevName.trim().toLowerCase() !== name.toLowerCase());
+
       var got = await sb.auth.getSession();
       var session = got.data && got.data.session;
+
+      // When signing in with a different name or starting fresh, purge previous session
+      // so other users' rooms and credentials are not inherited!
+      if (isDifferentUser && session) {
+        try { await sb.auth.signOut(); } catch (e) {}
+        session = null;
+      }
+
       if (!session) {
         var res = await sb.auth.signInAnonymously();
         if (res.error) throw res.error;
@@ -4057,6 +4816,8 @@
     store(ROOM_NAME_KEY, null);
     store(ROOM_KEY_PASS, null);
     ui.onlineList.hidden = true;
+    try { await sb.auth.signOut(); } catch (e) {}
+    state.user = null;
     showJoin('');
   });
 
@@ -4287,10 +5048,44 @@
       }
     });
 
+    // Initialize Offline Mesh Network and AI Swarm
+    if (window.MeshManager) {
+      window.MeshManager.on('chat-message', function (pkt) {
+        if (!pkt || !pkt.id || state.msgs.has(pkt.id)) return;
+        var msg = {
+          id: pkt.id,
+          user_id: pkt.user_id,
+          display_name: pkt.display_name,
+          content: pkt.content,
+          ts: pkt.ts || Date.now(),
+          status: 'sent',
+          seq: ++state.seq
+        };
+        state.msgs.set(msg.id, msg);
+        render('bottom');
+        playMessageSound();
+      });
+      window.MeshManager.on('status-change', function () {
+        updateMeshPeersUI();
+      });
+    }
+
     var saved = load(NAME_KEY);
     var savedRoom = load(ROOM_KEY);
     var savedRoomName = load(ROOM_NAME_KEY);
     var savedRoomKey = load(ROOM_KEY_PASS);
+
+    // Airplane Mode Offline Boot Fallback
+    if (!navigator.onLine && saved) {
+      state.user = { id: 'offline-local-user' };
+      state.name = saved;
+      state.room = savedRoom || DEFAULT_ROOM;
+      state.roomDisplayName = savedRoomName || DEFAULT_ROOM_NAME;
+      showChat();
+      toast('Operating in 100% Offline Mesh Mode ⚡');
+      return;
+    }
+
     var got = await sb.auth.getSession();
     var session = got.data && got.data.session;
     if (session) {
@@ -4322,6 +5117,35 @@
     } else {
       showJoin(saved);
     }
+  }
+
+  // Capsules (time capsules and place messages) get the app's own helpers
+  function sendCapsuleMessage(content) {
+    if (!state.user) return;
+    var m = {
+      id: uuid(), user_id: state.user.id, display_name: state.name, content: content,
+      raw: null, ts: Date.now(), status: 'sending', seq: ++state.seq,
+    };
+    state.msgs.set(m.id, m);
+    render('bottom');
+    playSendSound();
+    insert(m);
+  }
+
+  if (window.Capsules) {
+    window.Capsules.init({
+      sb: function () { return sb; },
+      anchor: ui.attachBtn,
+      getUser: function () { return state.user; },
+      getName: function () { return state.name; },
+      getRoom: function () { return state.room; },
+      getCryptoKey: function () { return state.cryptoKey; },
+      E2EE: E2EE,
+      uuid: uuid,
+      toast: toast,
+      shrinkPhoto: shrinkPhoto,
+      sendMessage: sendCapsuleMessage,
+    });
   }
 
   boot();
