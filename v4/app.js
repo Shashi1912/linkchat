@@ -19,6 +19,13 @@
   var PHOTO_MAX_PX = 1600;
   var COLUMNS = 'id, room_id, user_id, display_name, content, image_path, created_at';
 
+  // Top-level duration formatter used by voice note players and message rendering
+  function formatDuration(sec) {
+    var m = Math.floor(sec / 60);
+    var s = sec % 60;
+    return (m < 10 ? '0' + m : m) + ':' + (s < 10 ? '0' + s : s);
+  }
+
   // ---------- DOM ----------
   function $(id) { return document.getElementById(id); }
   var ui = {
@@ -2441,10 +2448,10 @@
       } catch (e) {
         b.append(el('div', 'text', rawContent));
       }
-    } else if (capsuleMatch) {
-      var capsuleCard = window.Capsules.renderCard(capsuleMatch, mine);
+    } else if (window.Capsules && window.Capsules.isCapsule(rawContent)) {
+      var capsuleCard = window.Capsules.renderCard(rawContent);
       b.append(capsuleCard);
-      textSnippet = capsuleMatch.kind === 'time' ? '⏳ Time Capsule' : '📍 Place Message';
+      textSnippet = 'Capsule ⏳📍';
     } else if (rawContent) {
       b.append(el('div', 'text', rawContent));
     }
@@ -3160,32 +3167,11 @@
   var isChoosingFile = false;
   ui.attachBtn.addEventListener('click', function (e) {
     e.stopPropagation();
-    if (ui.attachSheet) {
-      ui.attachSheet.hidden = !ui.attachSheet.hidden;
+    var pickPhoto = function () { isChoosingFile = true; ui.fileInput.click(); };
+    if (window.Capsules) {
+      window.Capsules.openAttachMenu({ onPhoto: pickPhoto });
     } else {
-      isChoosingFile = true;
-      ui.fileInput.click();
-    }
-  });
-
-  if (ui.attachPhotoItem) {
-    ui.attachPhotoItem.addEventListener('click', function () {
-      if (ui.attachSheet) ui.attachSheet.hidden = true;
-      isChoosingFile = true;
-      ui.fileInput.click();
-    });
-  }
-
-  if (ui.attachCapsuleItem) {
-    ui.attachCapsuleItem.addEventListener('click', function () {
-      if (ui.attachSheet) ui.attachSheet.hidden = true;
-      if (window.Capsules) window.Capsules.openModal('time');
-    });
-  }
-
-  document.addEventListener('click', function (e) {
-    if (ui.attachSheet && !ui.attachSheet.hidden && !ui.attachSheet.contains(e.target) && e.target !== ui.attachBtn) {
-      ui.attachSheet.hidden = true;
+      pickPhoto();
     }
   });
 
@@ -5094,6 +5080,35 @@
     } else {
       showJoin(saved);
     }
+  }
+
+  // Capsules (time capsules and place messages) get the app's own helpers
+  function sendCapsuleMessage(content) {
+    if (!state.user) return;
+    var m = {
+      id: uuid(), user_id: state.user.id, display_name: state.name, content: content,
+      raw: null, ts: Date.now(), status: 'sending', seq: ++state.seq,
+    };
+    state.msgs.set(m.id, m);
+    render('bottom');
+    playSendSound();
+    insert(m);
+  }
+
+  if (window.Capsules) {
+    window.Capsules.init({
+      sb: function () { return sb; },
+      anchor: ui.attachBtn,
+      getUser: function () { return state.user; },
+      getName: function () { return state.name; },
+      getRoom: function () { return state.room; },
+      getCryptoKey: function () { return state.cryptoKey; },
+      E2EE: E2EE,
+      uuid: uuid,
+      toast: toast,
+      shrinkPhoto: shrinkPhoto,
+      sendMessage: sendCapsuleMessage,
+    });
   }
 
   boot();

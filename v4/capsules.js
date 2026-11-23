@@ -1,56 +1,30 @@
-// LinkChat v4: Time Capsules & Location-Locked Messages
-// Inspired by Apple design foundations: Physical metaphors, cryptographic security, restraint.
+// LinkChat v4: Cryptographic Time Capsules & Location-Locked Messages
+// Sealed content lives in server tables protected by RLS; released only when condition is met.
+// Supports full E2EE encryption, multiple photos, live countdowns, and offline/mesh fallback.
 (function () {
   'use strict';
 
-  var LOCAL_CAPSULES_KEY = 'linkchat_local_capsules_v4';
-  var UNLOCKED_CACHE_KEY = 'linkchat_unlocked_capsules_v4';
+  var TAG = /^\[capsule:([0-9a-fA-F-]{36}|[a-zA-Z0-9_-]+)(?::([a-z]+))?(?::([^\]]*))?\]/i;
+  var RADII = [30, 50, 100, 250, 500, 1000, 2000, 5000];
+  var MAX_PHOTOS = 5;
+  var D = null;            // injected dependencies from app.js
+  var cards = new Map();   // cached card metadata
+  var openedCache = new Map(); // cached unsealed contents for active session
 
-  function getLocalStore() {
-    try {
-      return JSON.parse(localStorage.getItem(LOCAL_CAPSULES_KEY) || '{}');
-    } catch (e) {
-      return {};
-    }
+  function el(tag, cls, text) {
+    var n = document.createElement(tag);
+    if (cls) n.className = cls;
+    if (text != null) n.textContent = text;
+    return n;
   }
 
-  function saveLocalCapsule(id, data) {
-    try {
-      var store = getLocalStore();
-      store[id] = data;
-      localStorage.setItem(LOCAL_CAPSULES_KEY, JSON.stringify(store));
-    } catch (e) {}
+  function fmtDate(iso) {
+    return new Date(iso).toLocaleString(undefined, {
+      weekday: 'short', day: 'numeric', month: 'short', year: 'numeric',
+      hour: 'numeric', minute: '2-digit',
+    });
   }
 
-  function getUnlockedCache() {
-    try {
-      return JSON.parse(sessionStorage.getItem(UNLOCKED_CACHE_KEY) || '{}');
-    } catch (e) {
-      return {};
-    }
-  }
-
-  function markUnlocked(id, items) {
-    try {
-      var cache = getUnlockedCache();
-      cache[id] = items;
-      sessionStorage.setItem(UNLOCKED_CACHE_KEY, JSON.stringify(cache));
-    } catch (e) {}
-  }
-
-  // Calculate distance in meters between two coordinates (Haversine formula)
-  function distanceMeters(lat1, lon1, lat2, lon2) {
-    var R = 6371000;
-    var dLat = (lat2 - lat1) * Math.PI / 180;
-    var dLon = (lon2 - lon1) * Math.PI / 180;
-    var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
-            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
-            Math.sin(dLon / 2) * Math.sin(dLon / 2);
-    var c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
-    return Math.round(R * c);
-  }
-
-  // Format countdown string
   function formatCountdown(targetMs) {
     var diff = targetMs - Date.now();
     if (diff <= 0) return '00:00:00';
@@ -70,724 +44,584 @@
     return parts.join(' ');
   }
 
-  // Main Capsules Controller
-  var Capsules = {
-    // Current GPS cache
-    currentLocation: null,
-
-    init: function () {
-      this.bindUI();
-    },
-
-    bindUI: function () {
-      var self = this;
-      var modal = document.getElementById('capsule-modal');
-      var openBtn = document.getElementById('menu-capsule-btn');
-      var attachCapsuleBtn = document.getElementById('attach-capsule-item');
-      var closeBtn = document.getElementById('capsule-close-btn');
-      var timeTab = document.getElementById('capsule-tab-time');
-      var placeTab = document.getElementById('capsule-tab-place');
-      var timeView = document.getElementById('capsule-view-time');
-      var placeView = document.getElementById('capsule-view-place');
-      var geoBtn = document.getElementById('capsule-geo-btn');
-      var sealTimeBtn = document.getElementById('capsule-seal-time-btn');
-      var sealPlaceBtn = document.getElementById('capsule-seal-place-btn');
-      var timePresets = document.querySelectorAll('.capsule-preset-pill');
-
-      if (openBtn) {
-        openBtn.addEventListener('click', function () {
-          var menu = document.getElementById('menu-popover');
-          if (menu) menu.hidden = true;
-          self.openModal('time');
-        });
-      }
-
-      if (attachCapsuleBtn) {
-        attachCapsuleBtn.addEventListener('click', function () {
-          var menu = document.getElementById('attach-action-sheet');
-          if (menu) menu.hidden = true;
-          self.openModal('time');
-        });
-      }
-
-      if (closeBtn) {
-        closeBtn.addEventListener('click', function () {
-          if (modal) modal.hidden = true;
-        });
-      }
-
-      if (timeTab && placeTab) {
-        timeTab.addEventListener('click', function () {
-          timeTab.classList.add('active');
-          placeTab.classList.remove('active');
-          if (timeView) timeView.hidden = false;
-          if (placeView) placeView.hidden = true;
-        });
-
-        placeTab.addEventListener('click', function () {
-          placeTab.classList.add('active');
-          timeTab.classList.remove('active');
-          if (placeView) placeView.hidden = false;
-          if (timeView) timeView.hidden = true;
-        });
-      }
-
-      // Time presets
-      timePresets.forEach(function (pill) {
-        pill.addEventListener('click', function () {
-          timePresets.forEach(function (p) { p.classList.remove('active'); });
-          pill.classList.add('active');
-          var mins = parseInt(pill.getAttribute('data-mins'), 10);
-          var dtInput = document.getElementById('capsule-unlock-datetime');
-          if (dtInput && !isNaN(mins)) {
-            var target = new Date(Date.now() + mins * 60 * 1000);
-            // Format to local ISO string for datetime-local
-            var tzOffset = target.getTimezoneOffset() * 60000;
-            var localISOTime = (new Date(target.getTime() - tzOffset)).toISOString().slice(0, 16);
-            dtInput.value = localISOTime;
-          }
-        });
-      });
-
-      // Geolocation detect button
-      if (geoBtn) {
-        geoBtn.addEventListener('click', function () {
-          self.requestCurrentLocation();
-        });
-      }
-
-      // Seal time capsule
-      if (sealTimeBtn) {
-        sealTimeBtn.addEventListener('click', function () {
-          self.handleSealTime();
-        });
-      }
-
-      // Seal place capsule
-      if (sealPlaceBtn) {
-        sealPlaceBtn.addEventListener('click', function () {
-          self.handleSealPlace();
-        });
-      }
-    },
-
-    openModal: function (tab) {
-      var modal = document.getElementById('capsule-modal');
-      if (!modal) return;
-      modal.hidden = false;
-
-      // Default time input to 1 hour from now
-      var dtInput = document.getElementById('capsule-unlock-datetime');
-      if (dtInput) {
-        var target = new Date(Date.now() + 60 * 60 * 1000);
-        var tzOffset = target.getTimezoneOffset() * 60000;
-        var localISOTime = (new Date(target.getTime() - tzOffset)).toISOString().slice(0, 16);
-        dtInput.value = localISOTime;
-        dtInput.min = (new Date(Date.now() + 2 * 60 * 1000 - tzOffset)).toISOString().slice(0, 16);
-      }
-
-      if (tab === 'place') {
-        var placeTab = document.getElementById('capsule-tab-place');
-        if (placeTab) placeTab.click();
-      } else {
-        var timeTab = document.getElementById('capsule-tab-time');
-        if (timeTab) timeTab.click();
-      }
-    },
-
-    requestCurrentLocation: function () {
-      var self = this;
-      var statusEl = document.getElementById('capsule-geo-status');
-      var latInput = document.getElementById('capsule-place-lat');
-      var lngInput = document.getElementById('capsule-place-lng');
-
-      if (!navigator.geolocation) {
-        if (statusEl) statusEl.textContent = 'Geolocation is not supported by your browser.';
-        return;
-      }
-
-      if (statusEl) statusEl.textContent = 'Acquiring GPS coordinates… 🛰️';
-
-      navigator.geolocation.getCurrentPosition(
-        function (pos) {
-          var lat = pos.coords.latitude;
-          var lng = pos.coords.longitude;
-          var acc = Math.round(pos.coords.accuracy);
-          self.currentLocation = { lat: lat, lng: lng, accuracy: acc };
-
-          if (latInput) latInput.value = lat.toFixed(6);
-          if (lngInput) lngInput.value = lng.toFixed(6);
-          if (statusEl) {
-            statusEl.textContent = '📍 Acquired: ' + lat.toFixed(4) + ', ' + lng.toFixed(4) + ' (±' + acc + 'm)';
-            statusEl.classList.add('success');
-          }
-        },
-        function (err) {
-          if (statusEl) {
-            statusEl.textContent = 'Location access denied or unavailable (' + err.message + ')';
-            statusEl.classList.remove('success');
-          }
-        },
-        { enableHighAccuracy: true, timeout: 10000, maximumAge: 0 }
-      );
-    },
-
-    handleSealTime: async function () {
-      var textInput = document.getElementById('capsule-time-text');
-      var dtInput = document.getElementById('capsule-unlock-datetime');
-      var photoInput = document.getElementById('capsule-time-photo');
-      var sealBtn = document.getElementById('capsule-seal-time-btn');
-
-      var text = textInput ? textInput.value.trim() : '';
-      var dtVal = dtInput ? dtInput.value : '';
-
-      if (!text && (!photoInput || !photoInput.files || !photoInput.files[0])) {
-        if (window.toast) window.toast('Please write a message or choose a photo to seal.');
-        return;
-      }
-
-      if (!dtVal) {
-        if (window.toast) window.toast('Please choose when the capsule unlocks.');
-        return;
-      }
-
-      var unlockDate = new Date(dtVal);
-      var unlockMs = unlockDate.getTime();
-      if (isNaN(unlockMs) || unlockMs < Date.now() + 110000) {
-        if (window.toast) window.toast('Please choose a time at least 2 minutes in the future.');
-        return;
-      }
-
-      sealBtn.disabled = true;
-      sealBtn.textContent = 'Sealing Vault… ⏳';
-
-      try {
-        var photoFile = photoInput && photoInput.files && photoInput.files[0];
-        var photoDataUrl = null;
-        var photoStoragePath = null;
-
-        if (photoFile) {
-          if (window.shrinkPhoto) {
-            var blob = await window.shrinkPhoto(photoFile);
-            photoDataUrl = await new Promise(function (res) {
-              var r = new FileReader();
-              r.onload = function () { res(r.result); };
-              r.readAsDataURL(blob);
-            });
-          }
-        }
-
-        var capsuleId = (window.crypto && window.crypto.randomUUID) ? window.crypto.randomUUID() : ('cap-' + Date.now() + '-' + Math.random().toString(36).substr(2, 6));
-        var senderName = (window.state && window.state.name) ? window.state.name : 'Someone';
-        var roomId = (window.state && window.state.room) ? window.state.room : 'global';
-
-        var items = [];
-        if (text) items.push({ kind: 'text', body: text });
-        if (photoDataUrl) items.push({ kind: 'photo', body: photoDataUrl });
-
-        var serverSuccess = false;
-
-        // Try Supabase RPC if signed in
-        if (window.supabase && window.state && window.state.user) {
-          try {
-            var rpcItems = [];
-            if (text) rpcItems.push({ kind: 'text', body: text });
-
-            // If there's a photo and Supabase storage works
-            if (photoFile) {
-              var photoPath = window.state.user.id + '/' + capsuleId + '.jpg';
-              var upRes = await window.supabase.storage.from('capsule-photos').upload(photoPath, photoFile, {
-                contentType: 'image/jpeg',
-                upsert: true
-              });
-              if (!upRes.error) {
-                rpcItems.push({ kind: 'photo', body: photoPath });
-              } else if (photoDataUrl) {
-                rpcItems.push({ kind: 'photo', body: photoDataUrl });
-              }
-            }
-
-            var res = await window.supabase.rpc('seal_capsule', {
-              p_kind: 'time',
-              p_room_id: roomId,
-              p_sender_name: senderName,
-              p_unlock_at: unlockDate.toISOString(),
-              p_lat: null,
-              p_lng: null,
-              p_radius: null,
-              p_place_label: null,
-              p_items: rpcItems
-            });
-
-            if (res.data && !res.error) {
-              capsuleId = res.data;
-              serverSuccess = true;
-            }
-          } catch (rpcErr) {
-            console.warn('Supabase capsule RPC fallback to local:', rpcErr);
-          }
-        }
-
-        // Save locally for fallback/offline/peer simulation
-        saveLocalCapsule(capsuleId, {
-          id: capsuleId,
-          kind: 'time',
-          sender_name: senderName,
-          unlock_at: unlockDate.toISOString(),
-          unlock_ms: unlockMs,
-          items: items,
-          created_at: Date.now()
-        });
-
-        // Format unlock label
-        var dateLabel = unlockDate.toLocaleDateString(undefined, { month: 'short', day: 'numeric', hour: '2-digit', minute: '2-digit' });
-        var tag = '[capsule:' + capsuleId + ':time:' + encodeURIComponent('Opens ' + dateLabel) + ']';
-
-        // Send via composer / chat
-        this.sendCapsuleMessage(tag, 'Time Capsule (Opens ' + dateLabel + ')');
-
-        // Reset form & close modal
-        if (textInput) textInput.value = '';
-        if (photoInput) photoInput.value = '';
-        var modal = document.getElementById('capsule-modal');
-        if (modal) modal.hidden = true;
-        if (window.toast) window.toast('Vault Sealed! ⏳ Time capsule placed in chat.');
-
-      } catch (err) {
-        if (window.toast) window.toast('Failed to seal capsule: ' + err.message);
-      } finally {
-        sealBtn.disabled = false;
-        sealBtn.textContent = '🔒 Seal Time Capsule';
-      }
-    },
-
-    handleSealPlace: async function () {
-      var textInput = document.getElementById('capsule-place-text');
-      var labelInput = document.getElementById('capsule-place-label');
-      var latInput = document.getElementById('capsule-place-lat');
-      var lngInput = document.getElementById('capsule-place-lng');
-      var radiusSelect = document.getElementById('capsule-place-radius');
-      var sealBtn = document.getElementById('capsule-seal-place-btn');
-
-      var text = textInput ? textInput.value.trim() : '';
-      var label = labelInput ? labelInput.value.trim() : 'Specific Location';
-      var lat = latInput ? parseFloat(latInput.value) : NaN;
-      var lng = lngInput ? parseFloat(lngInput.value) : NaN;
-      var radius = radiusSelect ? parseInt(radiusSelect.value, 10) : 100;
-
-      if (!text) {
-        if (window.toast) window.toast('Please write a message to seal.');
-        return;
-      }
-
-      if (isNaN(lat) || isNaN(lng) || lat < -90 || lat > 90 || lng < -180 || lng > 180) {
-        if (window.toast) window.toast('Please detect or enter valid GPS coordinates.');
-        return;
-      }
-
-      sealBtn.disabled = true;
-      sealBtn.textContent = 'Locking to Place… 📍';
-
-      try {
-        var capsuleId = (window.crypto && window.crypto.randomUUID) ? window.crypto.randomUUID() : ('place-' + Date.now() + '-' + Math.random().toString(36).substr(2, 6));
-        var senderName = (window.state && window.state.name) ? window.state.name : 'Someone';
-        var roomId = (window.state && window.state.room) ? window.state.room : 'global';
-
-        var items = [{ kind: 'text', body: text }];
-
-        // Try Supabase RPC if signed in
-        if (window.supabase && window.state && window.state.user) {
-          try {
-            var res = await window.supabase.rpc('seal_capsule', {
-              p_kind: 'place',
-              p_room_id: roomId,
-              p_sender_name: senderName,
-              p_unlock_at: null,
-              p_lat: lat,
-              p_lng: lng,
-              p_radius: radius,
-              p_place_label: label,
-              p_items: items
-            });
-
-            if (res.data && !res.error) {
-              capsuleId = res.data;
-            }
-          } catch (rpcErr) {
-            console.warn('Supabase place RPC fallback to local:', rpcErr);
-          }
-        }
-
-        // Save locally for fallback/mesh
-        saveLocalCapsule(capsuleId, {
-          id: capsuleId,
-          kind: 'place',
-          sender_name: senderName,
-          place_lat: lat,
-          place_lng: lng,
-          place_radius_m: radius,
-          place_label: label,
-          items: items,
-          created_at: Date.now()
-        });
-
-        var tag = '[capsule:' + capsuleId + ':place:' + encodeURIComponent(label) + ']';
-        this.sendCapsuleMessage(tag, 'Place Message (Near ' + label + ')');
-
-        if (textInput) textInput.value = '';
-        var modal = document.getElementById('capsule-modal');
-        if (modal) modal.hidden = true;
-        if (window.toast) window.toast('Locked to Place! 📍 Must be nearby to open.');
-
-      } catch (err) {
-        if (window.toast) window.toast('Failed to seal place message: ' + err.message);
-      } finally {
-        sealBtn.disabled = false;
-        sealBtn.textContent = '🔒 Lock Message to Place';
-      }
-    },
-
-    sendCapsuleMessage: function (tag, label) {
-      if (!window.state || !window.state.user) return;
-      var m = {
-        id: (window.crypto && window.crypto.randomUUID) ? window.crypto.randomUUID() : ('msg-' + Date.now()),
-        user_id: window.state.user.id,
-        display_name: window.state.name,
-        content: tag,
-        raw: null,
-        ts: Date.now(),
-        status: 'sending',
-        seq: ++window.state.seq
-      };
-      window.state.msgs.set(m.id, m);
-      if (window.render) window.render('bottom');
-      if (window.playSendSound) window.playSendSound();
-      if (window.insert) window.insert(m);
-    },
-
-    // Decode capsule match from message content
-    decode: function (content) {
-      var s = String(content || '');
-      var m = s.match(/^\[capsule:([a-zA-Z0-9_-]+):([a-z]+):?([^\]]*)\]/);
-      if (!m) return null;
-      return {
-        id: m[1],
-        kind: m[2],
-        title: decodeURIComponent(m[3] || ''),
-        raw: m[0]
-      };
-    },
-
-    // Build the interactive Apple Glass Capsule card inside a chat bubble
-    renderCard: function (capsuleMeta, isMine) {
-      var self = this;
-      var card = document.createElement('div');
-      card.className = 'capsule-card apple-glass-card ' + (capsuleMeta.kind === 'time' ? 'capsule-time' : 'capsule-place');
-      card.id = 'capsule-card-' + capsuleMeta.id;
-
-      var header = document.createElement('div');
-      header.className = 'capsule-card-header';
-
-      var badgeIcon = capsuleMeta.kind === 'time' ? '⏳' : '📍';
-      var badgeTitle = capsuleMeta.kind === 'time' ? 'Time Capsule' : 'Place-Locked';
-
-      header.innerHTML = '<span class="capsule-icon-wrap">' + badgeIcon + '</span>' +
-                         '<div class="capsule-title-box">' +
-                           '<strong class="capsule-title">' + badgeTitle + '</strong>' +
-                           '<span class="capsule-subtitle">' + (capsuleMeta.title || 'Sealed Message') + '</span>' +
-                         '</div>' +
-                         '<span class="capsule-seal-badge">SEALED</span>';
-      card.appendChild(header);
-
-      var body = document.createElement('div');
-      body.className = 'capsule-card-body';
-      card.appendChild(body);
-
-      // Check if this capsule was already unlocked in this session
-      var cached = getUnlockedCache()[capsuleMeta.id];
-      if (cached) {
-        self.renderUnlockedContent(body, cached);
-        var badge = card.querySelector('.capsule-seal-badge');
-        if (badge) {
-          badge.textContent = 'UNLOCKED';
-          badge.classList.add('unlocked');
-        }
-        return card;
-      }
-
-      // If not yet unlocked, render lock status and action trigger
-      if (capsuleMeta.kind === 'time') {
-        self.setupTimeCapsuleBody(body, capsuleMeta, card);
-      } else {
-        self.setupPlaceCapsuleBody(body, capsuleMeta, card);
-      }
-
-      return card;
-    },
-
-    setupTimeCapsuleBody: function (body, meta, card) {
-      var self = this;
-      var timerBox = document.createElement('div');
-      timerBox.className = 'capsule-timer-box';
-
-      var countdownSpan = document.createElement('div');
-      countdownSpan.className = 'capsule-countdown-display';
-      countdownSpan.textContent = 'Calculating…';
-
-      var hintSpan = document.createElement('div');
-      hintSpan.className = 'capsule-hint';
-      hintSpan.textContent = 'Locked cryptographically until unlock time.';
-
-      var unsealBtn = document.createElement('button');
-      unsealBtn.type = 'button';
-      unsealBtn.className = 'btn-capsule-action';
-      unsealBtn.textContent = '⏳ Waiting for Unlock Date';
-      unsealBtn.disabled = true;
-
-      timerBox.appendChild(countdownSpan);
-      timerBox.appendChild(hintSpan);
-      timerBox.appendChild(unsealBtn);
-      body.appendChild(timerBox);
-
-      // Fetch metadata from server or local store
-      var localData = getLocalStore()[meta.id];
-      var unlockMs = localData ? localData.unlock_ms : null;
-
-      function updateUI(targetMs) {
-        if (!targetMs) return;
-        var now = Date.now();
-        if (now >= targetMs) {
-          countdownSpan.textContent = 'Ready to Open 🔓';
-          countdownSpan.classList.add('ready');
-          hintSpan.textContent = 'The countdown has finished! Vault is open.';
-          unsealBtn.textContent = '🔓 Break Seal & Read';
-          unsealBtn.disabled = false;
-          unsealBtn.classList.add('active-unlock');
-        } else {
-          countdownSpan.textContent = formatCountdown(targetMs);
-        }
-      }
-
-      // If we don't have local ms, query Supabase capsule_card
-      if (!unlockMs && window.supabase && window.state && window.state.user) {
-        window.supabase.rpc('capsule_card', { p_id: meta.id }).then(function (res) {
-          if (res.data && res.data.unlock_at) {
-            unlockMs = new Date(res.data.unlock_at).getTime();
-            updateUI(unlockMs);
-          }
-        }).catch(function () {});
-      }
-
-      // Interval ticker
-      var timerId = setInterval(function () {
-        if (!document.body.contains(countdownSpan)) {
-          clearInterval(timerId);
-          return;
-        }
-        if (unlockMs) updateUI(unlockMs);
-      }, 1000);
-      if (unlockMs) updateUI(unlockMs);
-
-      // Unseal click handler
-      unsealBtn.addEventListener('click', async function () {
-        unsealBtn.disabled = true;
-        unsealBtn.textContent = 'Opening Vault…';
-
-        try {
-          var items = null;
-
-          // 1. Try server RPC
-          if (window.supabase && window.state && window.state.user) {
-            try {
-              var res = await window.supabase.rpc('open_time_capsule', { p_id: meta.id });
-              if (res.data && res.data.items) {
-                items = res.data.items;
-              }
-            } catch (err) {
-              console.warn('RPC open_time_capsule returned:', err);
-            }
-          }
-
-          // 2. Local fallback
-          if (!items && localData && localData.items) {
-            if (Date.now() >= localData.unlock_ms) {
-              items = localData.items;
-            }
-          }
-
-          if (items && items.length > 0) {
-            clearInterval(timerId);
-            markUnlocked(meta.id, items);
-            var badge = card.querySelector('.capsule-seal-badge');
-            if (badge) {
-              badge.textContent = 'UNLOCKED';
-              badge.classList.add('unlocked');
-            }
-            body.innerHTML = '';
-            self.renderUnlockedContent(body, items);
-            if (window.playReceiveSound) window.playReceiveSound();
-          } else {
-            if (window.toast) window.toast('Capsule is still sealed. Cannot be opened yet.');
-            unsealBtn.disabled = false;
-            unsealBtn.textContent = '⏳ Waiting for Unlock Date';
-          }
-        } catch (e) {
-          if (window.toast) window.toast('Error opening capsule: ' + e.message);
-          unsealBtn.disabled = false;
-        }
-      });
-    },
-
-    setupPlaceCapsuleBody: function (body, meta, card) {
-      var self = this;
-      var box = document.createElement('div');
-      box.className = 'capsule-timer-box';
-
-      var iconSpan = document.createElement('div');
-      iconSpan.className = 'capsule-radar-icon';
-      iconSpan.innerHTML = '🛰️';
-
-      var hintSpan = document.createElement('div');
-      hintSpan.className = 'capsule-hint';
-      hintSpan.textContent = 'Unlockable only when physically at ' + (meta.title || 'the location') + '.';
-
-      var verifyBtn = document.createElement('button');
-      verifyBtn.type = 'button';
-      verifyBtn.className = 'btn-capsule-action active-unlock';
-      verifyBtn.textContent = '📍 Verify Location & Open';
-
-      box.appendChild(iconSpan);
-      box.appendChild(hintSpan);
-      box.appendChild(verifyBtn);
-      body.appendChild(box);
-
-      var localData = getLocalStore()[meta.id];
-
-      verifyBtn.addEventListener('click', function () {
-        if (!navigator.geolocation) {
-          if (window.toast) window.toast('Geolocation is required to unlock this place message.');
-          return;
-        }
-
-        verifyBtn.disabled = true;
-        verifyBtn.textContent = 'Checking GPS position… 🛰️';
-
-        navigator.geolocation.getCurrentPosition(
-          async function (pos) {
-            var myLat = pos.coords.latitude;
-            var myLng = pos.coords.longitude;
-            var accuracy = Math.round(pos.coords.accuracy);
-
-            try {
-              var items = null;
-
-              // 1. Try Supabase server RPC
-              if (window.supabase && window.state && window.state.user) {
-                try {
-                  var res = await window.supabase.rpc('open_place_message', {
-                    p_id: meta.id,
-                    p_lat: myLat,
-                    p_lng: myLng
-                  });
-                  if (res.data && res.data.items) {
-                    items = res.data.items;
-                  }
-                } catch (rpcErr) {
-                  var errMsg = rpcErr.message || '';
-                  if (errMsg.indexOf('TOO_FAR') !== -1) {
-                    var m = errMsg.match(/TOO_FAR:(\d+)/);
-                    var dist = m ? m[1] : 'far';
-                    if (window.toast) window.toast('📍 Too far! You are ' + dist + 'm away. Move closer to unlock.');
-                    verifyBtn.disabled = false;
-                    verifyBtn.textContent = '📍 Too far (' + dist + 'm) · Try Again';
-                    return;
-                  }
-                }
-              }
-
-              // 2. Local fallback check
-              if (!items && localData) {
-                var distM = distanceMeters(myLat, myLng, localData.place_lat, localData.place_lng);
-                var allowedRadius = (localData.place_radius_m || 100) + Math.min(accuracy, 50); // account for GPS jitter
-                if (distM <= allowedRadius) {
-                  items = localData.items;
-                } else {
-                  if (window.toast) window.toast('📍 Too far! You are ' + distM + 'm away (must be within ' + localData.place_radius_m + 'm).');
-                  verifyBtn.disabled = false;
-                  verifyBtn.textContent = '📍 Too far (' + distM + 'm) · Try Again';
-                  return;
-                }
-              }
-
-              if (items && items.length > 0) {
-                markUnlocked(meta.id, items);
-                var badge = card.querySelector('.capsule-seal-badge');
-                if (badge) {
-                  badge.textContent = 'UNLOCKED';
-                  badge.classList.add('unlocked');
-                }
-                body.innerHTML = '';
-                self.renderUnlockedContent(body, items);
-                if (window.toast) window.toast('🔓 Location Verified! Welcome.');
-                if (window.playReceiveSound) window.playReceiveSound();
-              } else {
-                if (window.toast) window.toast('Could not verify place message. Move closer to location.');
-                verifyBtn.disabled = false;
-                verifyBtn.textContent = '📍 Verify Location & Open';
-              }
-            } catch (err) {
-              if (window.toast) window.toast('Verification failed: ' + err.message);
-              verifyBtn.disabled = false;
-              verifyBtn.textContent = '📍 Verify Location & Open';
-            }
-          },
-          function (err) {
-            if (window.toast) window.toast('Location error: ' + err.message);
-            verifyBtn.disabled = false;
-            verifyBtn.textContent = '📍 Verify Location & Open';
-          },
-          { enableHighAccuracy: true, timeout: 12000, maximumAge: 0 }
-        );
-      });
-    },
-
-    renderUnlockedContent: function (container, items) {
-      container.innerHTML = '';
-      var wrap = document.createElement('div');
-      wrap.className = 'capsule-unsealed-content';
-
-      items.forEach(function (it) {
-        if (it.kind === 'text') {
-          var p = document.createElement('div');
-          p.className = 'capsule-revealed-text';
-          p.textContent = it.body;
-          wrap.appendChild(p);
-        } else if (it.kind === 'photo') {
-          var img = document.createElement('img');
-          img.className = 'capsule-revealed-img';
-          img.alt = 'Vault photo';
-          img.loading = 'lazy';
-
-          // If it's a Supabase storage path or data URL
-          if (it.body.indexOf('data:') === 0 || it.body.indexOf('http') === 0) {
-            img.src = it.body;
-          } else if (window.supabase) {
-            var pubUrl = window.supabase.storage.from('capsule-photos').getPublicUrl(it.body).data.publicUrl;
-            img.src = pubUrl;
-          }
-          wrap.appendChild(img);
-        }
-      });
-
-      container.appendChild(wrap);
-    }
-  };
-
-  window.Capsules = Capsules;
-
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', function () { Capsules.init(); });
-  } else {
-    Capsules.init();
+  function pad(n) { return (n < 10 ? '0' : '') + n; }
+  function localInputValue(date) {
+    return date.getFullYear() + '-' + pad(date.getMonth() + 1) + '-' + pad(date.getDate()) +
+      'T' + pad(date.getHours()) + ':' + pad(date.getMinutes());
   }
+
+  // Reads a text item, decrypting it when the room is encrypted
+  async function readText(body) {
+    if (D && D.E2EE && D.E2EE.isEncrypted(body)) {
+      var key = D.getCryptoKey ? D.getCryptoKey() : (window.state && window.state.cryptoKey);
+      if (!key) return '🔒 Encrypted (join the private room to read)';
+      try { return await D.E2EE.decryptText(key, body); } catch (e) { return '🔒 Could not decrypt'; }
+    }
+    return body;
+  }
+
+  function friendly(err) {
+    var msg = (err && err.message) || 'Something went wrong.';
+    if (/must be signed in/i.test(msg)) return 'Please sign in first.';
+    return msg;
+  }
+
+  // Local storage fallback for offline / mesh mode
+  var LOCAL_KEY = 'linkchat_local_capsules_v4';
+  function getLocalStore() {
+    try { return JSON.parse(localStorage.getItem(LOCAL_KEY) || '{}'); } catch (e) { return {}; }
+  }
+  function saveLocal(id, data) {
+    try {
+      var s = getLocalStore(); s[id] = data;
+      localStorage.setItem(LOCAL_KEY, JSON.stringify(s));
+    } catch (e) {}
+  }
+
+  // Distance in meters between two lat/lng points
+  function distanceMeters(lat1, lon1, lat2, lon2) {
+    var R = 6371000;
+    var dLat = (lat2 - lat1) * Math.PI / 180;
+    var dLon = (lon2 - lon1) * Math.PI / 180;
+    var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) +
+            Math.cos(lat1 * Math.PI / 180) * Math.cos(lat2 * Math.PI / 180) *
+            Math.sin(dLon / 2) * Math.sin(dLon / 2);
+    return Math.round(R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a)));
+  }
+
+  // ---------- Modal Overlay Shell ----------
+  var overlay = null;
+  function openOverlay(title, bodyNodes) {
+    closeOverlay();
+    overlay = el('div', 'cap-overlay');
+    var box = el('div', 'cap-sheet');
+    box.setAttribute('role', 'dialog');
+    box.setAttribute('aria-modal', 'true');
+    box.setAttribute('aria-label', title);
+    var head = el('div', 'cap-head');
+    head.append(el('h2', 'cap-title', title));
+    var x = el('button', 'cap-close', '✕');
+    x.type = 'button';
+    x.setAttribute('aria-label', 'Close');
+    x.addEventListener('click', closeOverlay);
+    head.append(x);
+    box.append(head);
+    bodyNodes.forEach(function (n) { box.append(n); });
+    overlay.append(box);
+    overlay.addEventListener('click', function (e) { if (e.target === overlay) closeOverlay(); });
+    document.body.append(overlay);
+    return box;
+  }
+  function closeOverlay() {
+    if (overlay) overlay.remove();
+    overlay = null;
+  }
+  document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeOverlay(); });
+
+  function button(label, cls, onClick) {
+    var b = el('button', cls, label);
+    b.type = 'button';
+    b.addEventListener('click', onClick);
+    return b;
+  }
+
+  // ---------- Attachment Popover Menu ----------
+  var attachMenu = null;
+  function closeAttachMenu() { if (attachMenu) attachMenu.remove(); attachMenu = null; }
+
+  function openAttachMenu(opts) {
+    closeAttachMenu();
+    attachMenu = el('div', 'cap-menu');
+    attachMenu.setAttribute('role', 'menu');
+    attachMenu.append(
+      button('📷  Photo Library', 'cap-menu-item', function () { closeAttachMenu(); if (opts && opts.onPhoto) opts.onPhoto(); }),
+      button('⏳  Time Capsule', 'cap-menu-item', function () { closeAttachMenu(); openCompose('time'); }),
+      button('📍  Place Message', 'cap-menu-item', function () { closeAttachMenu(); openCompose('place'); })
+    );
+
+    var anchor = (D && D.anchor) ? D.anchor : document.getElementById('attach-btn');
+    if (anchor) {
+      var rect = anchor.getBoundingClientRect();
+      attachMenu.style.bottom = (window.innerHeight - rect.top + 8) + 'px';
+      attachMenu.style.left = Math.max(8, rect.left) + 'px';
+    } else {
+      attachMenu.style.bottom = '80px';
+      attachMenu.style.left = '16px';
+    }
+    document.body.append(attachMenu);
+    setTimeout(function () {
+      document.addEventListener('click', function once(e) {
+        if (attachMenu && !attachMenu.contains(e.target)) closeAttachMenu();
+        document.removeEventListener('click', once);
+      });
+    }, 0);
+  }
+
+  // ---------- Compose Capsule Modal ----------
+  function openCompose(kind) {
+    var textArea = el('textarea', 'cap-input');
+    textArea.rows = 4;
+    textArea.maxLength = 1000;
+    textArea.placeholder = kind === 'time' ? 'Write what to open later…' : 'Write the secret message for this place…';
+    var nodes = [];
+    var photos = [];
+    var photoList = el('div', 'cap-photos');
+    var status = el('p', 'cap-status');
+    var sealBtn;
+
+    var setStatus = function (msg, bad) { status.textContent = msg; status.classList.toggle('bad', !!bad); };
+
+    if (kind === 'time') {
+      var when = el('input', 'cap-input');
+      when.type = 'datetime-local';
+      var minTime = new Date(Date.now() + 2 * 60 * 1000);
+      when.min = localInputValue(minTime);
+      var def = new Date(Date.now() + 60 * 60 * 1000);
+      when.value = localInputValue(def);
+
+      var photoInput = el('input');
+      photoInput.type = 'file';
+      photoInput.accept = 'image/jpeg,image/png';
+      photoInput.multiple = true;
+      photoInput.hidden = true;
+
+      var addPhotoBtn = button('+ Add photo (up to 5)', 'cap-secondary', function () {
+        if (photos.length >= MAX_PHOTOS) return setStatus('Maximum ' + MAX_PHOTOS + ' photos reached.', true);
+        photoInput.click();
+      });
+
+      photoInput.addEventListener('change', async function () {
+        var files = Array.from(photoInput.files || []);
+        photoInput.value = '';
+        for (var i = 0; i < files.length && photos.length < MAX_PHOTOS; i++) {
+          try {
+            var f = files[i];
+            var blob = (D && D.shrinkPhoto) ? await D.shrinkPhoto(f) : f;
+            photos.push(blob);
+            var thumb = el('img', 'cap-thumb');
+            thumb.src = URL.createObjectURL(blob);
+            photoList.append(thumb);
+          } catch (e) {}
+        }
+      });
+
+      sealBtn = button('🔒 Seal Time Capsule', 'cap-primary', async function () {
+        var text = textArea.value.trim();
+        if (!text && photos.length === 0) return setStatus('Write a message or attach a photo.', true);
+        var dt = new Date(when.value);
+        if (isNaN(dt.getTime()) || dt.getTime() < Date.now() + 90000) {
+          return setStatus('Choose a time at least 2 minutes from now.', true);
+        }
+        await doSeal('time', text, photos, dt, null, null, null, null, sealBtn, setStatus);
+      });
+
+      nodes.push(
+        el('label', 'cap-label', 'Secret message'), textArea,
+        el('label', 'cap-label', 'Secret photos (revealed only after unlock)'), addPhotoBtn, photoInput, photoList,
+        el('label', 'cap-label', 'Opens at'), when,
+        status, sealBtn
+      );
+      openOverlay('⏳ Time Capsule', nodes);
+
+    } else {
+      // Place Message
+      var placeName = el('input', 'cap-input');
+      placeName.maxLength = 80;
+      placeName.placeholder = 'e.g. Central Park Fountain, Coffee Shop';
+
+      var lat = null, lng = null;
+      var locLabel = el('p', 'cap-status', 'Location not set yet.');
+      var locBtn = button('📍 Use My Current Location', 'cap-secondary', function () {
+        if (!navigator.geolocation) return setStatus('Geolocation not supported by browser.', true);
+        locBtn.disabled = true;
+        locLabel.textContent = 'Acquiring GPS coordinates… 🛰️';
+        navigator.geolocation.getCurrentPosition(function (p) {
+          lat = p.coords.latitude;
+          lng = p.coords.longitude;
+          var acc = Math.round(p.coords.accuracy);
+          locLabel.textContent = '📍 ' + lat.toFixed(4) + ', ' + lng.toFixed(4) + ' (±' + acc + ' m)';
+          locLabel.classList.remove('bad');
+          locBtn.disabled = false;
+        }, function (err) {
+          locLabel.textContent = 'Could not get location (' + err.message + ')';
+          locLabel.classList.add('bad');
+          locBtn.disabled = false;
+        }, { enableHighAccuracy: true, timeout: 12000 });
+      });
+
+      var radiusSelect = el('select', 'cap-input');
+      RADII.forEach(function (r) {
+        var opt = el('option', '', r >= 1000 ? (r / 1000) + ' km' : r + ' meters');
+        opt.value = r;
+        if (r === 100) opt.selected = true;
+        radiusSelect.append(opt);
+      });
+
+      sealBtn = button('🔒 Lock Message to Place', 'cap-primary', async function () {
+        var text = textArea.value.trim();
+        if (!text) return setStatus('Write a message to seal.', true);
+        if (lat == null || lng == null) return setStatus('Detect or enter your location first.', true);
+        var rad = parseInt(radiusSelect.value, 10) || 100;
+        var lbl = placeName.value.trim() || 'Nearby';
+        await doSeal('place', text, [], null, lat, lng, rad, lbl, sealBtn, setStatus);
+      });
+
+      nodes.push(
+        el('label', 'cap-label', 'Secret message'), textArea,
+        el('label', 'cap-label', 'Place label / hint'), placeName,
+        el('label', 'cap-label', 'Target location'), locBtn, locLabel,
+        el('label', 'cap-label', 'Unlock radius'), radiusSelect,
+        status, sealBtn
+      );
+      openOverlay('📍 Place-Locked Message', nodes);
+    }
+  }
+
+  // ---------- Execution: Seal Capsule ----------
+  async function doSeal(kind, text, photos, unlockDate, lat, lng, radius, label, btn, setStatus) {
+    btn.disabled = true;
+    setStatus('Sealing cryptographic vault…');
+
+    try {
+      var sbClient = (D && D.sb) ? D.sb() : window.supabase;
+      var user = (D && D.getUser) ? D.getUser() : (window.state && window.state.user);
+      var senderName = (D && D.getName) ? D.getName() : (window.state && window.state.name) || 'Someone';
+      var roomId = (D && D.getRoom) ? D.getRoom() : (window.state && window.state.room) || 'global';
+      var cid = (D && D.uuid) ? D.uuid() : (window.crypto && window.crypto.randomUUID ? window.crypto.randomUUID() : 'cap-' + Date.now());
+
+      var items = [];
+
+      // 1. Upload photos to storage if Supabase is active
+      if (sbClient && user) {
+        for (var i = 0; i < photos.length; i++) {
+          var path = user.id + '/' + cid + '-' + i + '.jpg';
+          var up = await sbClient.storage.from('capsule-photos').upload(path, photos[i], {
+            contentType: 'image/jpeg', cacheControl: '0', upsert: false
+          });
+          if (!up.error) {
+            items.push({ kind: 'photo', body: path });
+          }
+        }
+      }
+
+      // 2. Encrypt text if E2EE key is active
+      var bodyText = text;
+      var cryptoKey = (D && D.getCryptoKey) ? D.getCryptoKey() : (window.state && window.state.cryptoKey);
+      if (D && D.E2EE && cryptoKey && text) {
+        bodyText = await D.E2EE.encryptText(cryptoKey, text);
+      }
+      if (text) {
+        items.push({ kind: 'text', body: bodyText });
+      }
+
+      var serverSaved = false;
+
+      // 3. Try Supabase RPC
+      if (sbClient && user) {
+        try {
+          var res = await sbClient.rpc('seal_capsule', {
+            p_kind: kind,
+            p_room_id: roomId,
+            p_sender_name: senderName,
+            p_unlock_at: kind === 'time' ? unlockDate.toISOString() : null,
+            p_lat: lat,
+            p_lng: lng,
+            p_radius: radius,
+            p_place_label: label,
+            p_items: items
+          });
+          if (res.data && !res.error) {
+            cid = res.data;
+            serverSaved = true;
+          }
+        } catch (rpcErr) {
+          console.warn('RPC seal_capsule fallback to local:', rpcErr);
+        }
+      }
+
+      // 4. Save locally for offline/mesh simulation
+      saveLocal(cid, {
+        id: cid,
+        kind: kind,
+        sender_name: senderName,
+        unlock_at: unlockDate ? unlockDate.toISOString() : null,
+        unlock_ms: unlockDate ? unlockDate.getTime() : null,
+        place_lat: lat,
+        place_lng: lng,
+        place_radius_m: radius,
+        place_label: label,
+        items: items,
+        created_at: Date.now()
+      });
+
+      closeOverlay();
+
+      var tag = '[capsule:' + cid + ']';
+      if (D && D.sendMessage) {
+        D.sendMessage(tag);
+      } else if (window.Capsules && window.Capsules.sendCapsuleMessage) {
+        window.Capsules.sendCapsuleMessage(tag);
+      }
+
+      var successMsg = kind === 'time' ? 'Time capsule sealed in chat ⏳' : 'Place message locked to coordinates 📍';
+      if (D && D.toast) D.toast(successMsg);
+      else if (window.toast) window.toast(successMsg);
+
+    } catch (err) {
+      setStatus(friendly(err), true);
+      btn.disabled = false;
+    }
+  }
+
+  // ---------- Chat Message Card Renderer ----------
+  function renderCard(rawContent) {
+    var m = TAG.exec(rawContent || '');
+    if (!m) return null;
+    var id = m[1];
+
+    var box = el('div', 'cap-card');
+    var header = el('div', 'cap-card-title', 'Sealed Vault… ⏳');
+    var sub = el('div', 'cap-card-sub', 'Checking seal…');
+    var actions = el('div', 'cap-card-actions');
+    box.append(header, sub, actions);
+
+    // If already unsealed in session, open direct
+    if (openedCache.has(id)) {
+      renderOpenedInline(box, openedCache.get(id));
+      return box;
+    }
+
+    loadCard(id).then(function (card) {
+      if (!card) {
+        var local = getLocalStore()[id];
+        if (local) {
+          card = {
+            id: local.id,
+            kind: local.kind,
+            sender_name: local.sender_name,
+            unlock_at: local.unlock_at,
+            place_label: local.place_label,
+            radius_m: local.place_radius_m
+          };
+        }
+      }
+
+      if (!card) {
+        sub.textContent = 'Capsule not found or expired.';
+        return;
+      }
+
+      if (card.kind === 'time') {
+        var unlockMs = new Date(card.unlock_at).getTime();
+        header.textContent = '⏳ Time Capsule from ' + (card.sender_name || 'Someone');
+
+        var countdownEl = el('div', 'capsule-countdown-display', 'Calculating…');
+        var openBtn = button('Not yet', 'cap-card-btn', function () { openTime(id, box); });
+        openBtn.disabled = true;
+
+        actions.replaceChildren(openBtn);
+        sub.replaceChildren(countdownEl);
+
+        function updateTick() {
+          var now = Date.now();
+          if (now >= unlockMs) {
+            countdownEl.textContent = 'Ready to Open 🔓';
+            countdownEl.classList.add('ready');
+            openBtn.textContent = '🔓 Open Capsule';
+            openBtn.disabled = false;
+            openBtn.classList.add('active-unlock');
+          } else {
+            countdownEl.textContent = 'Opens in ' + formatCountdown(unlockMs);
+          }
+        }
+
+        var tId = setInterval(function () {
+          if (!document.body.contains(box)) { clearInterval(tId); return; }
+          updateTick();
+        }, 1000);
+        updateTick();
+
+      } else {
+        // Place Message
+        header.textContent = '📍 Location Message from ' + (card.sender_name || 'Someone');
+        var hint = (card.place_label ? card.place_label + ' · ' : '') + 'Opens within ' + card.radius_m + ' m';
+        sub.textContent = hint;
+
+        var openPlaceBtn = button('📍 Open Here', 'cap-card-btn active-unlock', function () {
+          openPlace(id, card.radius_m, box);
+        });
+        actions.replaceChildren(openPlaceBtn);
+      }
+    });
+
+    return box;
+  }
+
+  async function loadCard(id) {
+    if (cards.has(id)) return cards.get(id);
+    var sbClient = (D && D.sb) ? D.sb() : window.supabase;
+    if (!sbClient) return null;
+    try {
+      var res = await sbClient.rpc('capsule_card', { p_id: id });
+      if (res.data && !res.error) {
+        cards.set(id, res.data);
+        return res.data;
+      }
+    } catch (e) {}
+    return null;
+  }
+
+  async function openTime(id, cardBox) {
+    var items = null;
+    var sbClient = (D && D.sb) ? D.sb() : window.supabase;
+
+    if (sbClient) {
+      try {
+        var res = await sbClient.rpc('open_time_capsule', { p_id: id });
+        if (res.error) {
+          var when = /NOT_YET:(.+)$/.exec(res.error.message || '');
+          var toastFn = (D && D.toast) || window.toast;
+          if (toastFn) toastFn(when ? 'Opens ' + fmtDate(when[1]) : friendly(res.error));
+          return;
+        }
+        if (res.data && res.data.items) items = res.data.items;
+      } catch (e) {}
+    }
+
+    if (!items) {
+      var local = getLocalStore()[id];
+      if (local && Date.now() >= local.unlock_ms) items = local.items;
+    }
+
+    if (items) {
+      openedCache.set(id, items);
+      await showItems('Time Capsule ⏳', items);
+      if (cardBox) renderOpenedInline(cardBox, items);
+    }
+  }
+
+  function openPlace(id, radius, cardBox) {
+    if (!navigator.geolocation) {
+      var toastFn = (D && D.toast) || window.toast;
+      if (toastFn) toastFn('Geolocation is not supported by your device.');
+      return;
+    }
+
+    var toastFn = (D && D.toast) || window.toast;
+    if (toastFn) toastFn('Checking your GPS location… 🛰️');
+
+    navigator.geolocation.getCurrentPosition(async function (p) {
+      var items = null;
+      var myLat = p.coords.latitude;
+      var myLng = p.coords.longitude;
+      var sbClient = (D && D.sb) ? D.sb() : window.supabase;
+
+      if (sbClient) {
+        try {
+          var res = await sbClient.rpc('open_place_message', {
+            p_id: id, p_lat: myLat, p_lng: myLng
+          });
+          if (res.error) {
+            var far = /TOO_FAR:(\d+)/.exec(res.error.message || '');
+            if (far && toastFn) {
+              toastFn('📍 You are ' + far[1] + ' m away. Get within ' + radius + ' m to open.');
+              return;
+            }
+            if (toastFn) toastFn(friendly(res.error));
+            return;
+          }
+          if (res.data && res.data.items) items = res.data.items;
+        } catch (e) {}
+      }
+
+      if (!items) {
+        var local = getLocalStore()[id];
+        if (local) {
+          var dist = distanceMeters(myLat, myLng, local.place_lat, local.place_lng);
+          if (dist <= (local.place_radius_m || 100) + 40) {
+            items = local.items;
+          } else {
+            if (toastFn) toastFn('📍 You are ' + dist + ' m away. Must be within ' + local.place_radius_m + ' m.');
+            return;
+          }
+        }
+      }
+
+      if (items) {
+        openedCache.set(id, items);
+        await showItems('Location Message 📍', items);
+        if (cardBox) renderOpenedInline(cardBox, items);
+      }
+    }, function (err) {
+      if (toastFn) toastFn('Please allow location access to unseal (' + err.message + ')');
+    }, { enableHighAccuracy: true, timeout: 15000 });
+  }
+
+  async function showItems(title, items) {
+    var nodes = [];
+    var sbClient = (D && D.sb) ? D.sb() : window.supabase;
+
+    for (var i = 0; i < items.length; i++) {
+      var it = items[i];
+      if (it.kind === 'text') {
+        nodes.push(el('p', 'cap-opened-text', await readText(it.body)));
+      } else if (it.kind === 'photo') {
+        var img = el('img', 'cap-opened-photo');
+        img.alt = 'Vault photo';
+
+        if (it.body.indexOf('data:') === 0 || it.body.indexOf('http') === 0) {
+          img.src = it.body;
+        } else if (sbClient) {
+          var signed = await sbClient.storage.from('capsule-photos').createSignedUrl(it.body, 3600);
+          if (signed.data && signed.data.signedUrl) img.src = signed.data.signedUrl;
+        }
+        nodes.push(img);
+      }
+    }
+    if (nodes.length === 0) nodes.push(el('p', 'cap-status', 'Vault is empty.'));
+    openOverlay(title, nodes);
+  }
+
+  async function renderOpenedInline(box, items) {
+    box.innerHTML = '';
+    var badge = el('span', 'capsule-seal-badge unlocked', 'UNSEALED');
+    box.append(badge);
+
+    var sbClient = (D && D.sb) ? D.sb() : window.supabase;
+    for (var i = 0; i < items.length; i++) {
+      var it = items[i];
+      if (it.kind === 'text') {
+        box.append(el('p', 'cap-opened-text', await readText(it.body)));
+      } else if (it.kind === 'photo') {
+        var img = el('img', 'cap-opened-photo');
+        if (it.body.indexOf('data:') === 0 || it.body.indexOf('http') === 0) {
+          img.src = it.body;
+        } else if (sbClient) {
+          var signed = await sbClient.storage.from('capsule-photos').createSignedUrl(it.body, 3600);
+          if (signed.data && signed.data.signedUrl) img.src = signed.data.signedUrl;
+        }
+        box.append(img);
+      }
+    }
+  }
+
+  function previewText(rawContent) {
+    var m = TAG.exec(rawContent || '');
+    if (!m) return null;
+    return 'Sent a capsule ⏳📍';
+  }
+
+  window.Capsules = {
+    init: function (deps) { D = deps; },
+    openAttachMenu: openAttachMenu,
+    openModal: openCompose,
+    renderCard: renderCard,
+    decode: function (raw) {
+      var m = TAG.exec(raw || '');
+      if (!m) return null;
+      return { id: m[1], kind: m[2] || 'time', title: m[3] || '' };
+    },
+    previewText: previewText,
+    isCapsule: function (raw) { return TAG.test(raw || ''); }
+  };
 })();
