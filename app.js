@@ -5517,6 +5517,11 @@
       return false;
     }
 
+    if (urlRoom === 'general') {
+      joinGeneral();
+      return true;
+    }
+
     if (urlKey) {
       try {
         await joinPrivateRoom(urlRoom, urlKey);
@@ -5925,6 +5930,39 @@
       toast: toast,
       shrinkPhoto: shrinkPhoto,
       sendMessage: sendCapsuleMessage,
+    });
+  }
+
+  // Apple NameDrop Proximity Handshake Initialization
+  if (window.NameDrop) {
+    window.NameDrop.init({
+      sb: function () { return sb; },
+      onJoinRoom: async function (roomId, key, roomName) {
+        if (!roomId || roomId === 'general') {
+          state.room = 'general';
+          state.roomDisplayName = 'General Chat';
+          state.roomKey = '';
+          markRoomAsRead('general');
+          addLocalUserRoom({ id: 'general', name: 'General Chat', created_at: new Date().toISOString() });
+          enterChat();
+        } else {
+          try {
+            await joinPrivateRoom(roomId, key);
+          } catch (e) {
+            toast('Could not join room: ' + (e.message || e));
+          }
+        }
+      },
+      getRoom: function () {
+        return {
+          id: state.room || 'general',
+          name: state.roomDisplayName || state.room || 'General Chat',
+          key: state.roomKey || ''
+        };
+      },
+      getChannel: function () {
+        return state.channel;
+      }
     });
   }
 

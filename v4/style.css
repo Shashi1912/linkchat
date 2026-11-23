@@ -4493,3 +4493,271 @@ mark.search-highlight {
   color: var(--apple-secondary-label);
   line-height: 1.35;
 }
+
+/* =========================================================================
+   Apple NameDrop / Proximity Tap-to-Join System
+   ========================================================================= */
+.action-btn-icon.purple {
+  background: rgba(175, 82, 222, 0.15) !important;
+  color: #af52de !important;
+}
+.namedrop-btn-glow {
+  color: #af52de !important;
+}
+.namedrop-modal-scrim {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(10, 10, 14, 0.78);
+  backdrop-filter: blur(28px) saturate(190%);
+  -webkit-backdrop-filter: blur(28px) saturate(190%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+  overflow: hidden;
+  animation: namedropFadeIn 0.24s cubic-bezier(0.16, 1, 0.3, 1);
+}
+@keyframes namedropFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* Liquid Aurora Bloom at Top of Screen (iOS 17 NameDrop Glow) */
+.namedrop-aurora-glow {
+  position: absolute;
+  top: -120px;
+  left: 50%;
+  transform: translateX(-50%);
+  width: 100vw;
+  max-width: 600px;
+  height: 380px;
+  pointer-events: none;
+  z-index: 1;
+  display: flex;
+  justify-content: center;
+}
+.aurora-liquid-wave {
+  position: absolute;
+  border-radius: 50%;
+  filter: blur(48px);
+  opacity: 0.65;
+  transition: transform 0.6s cubic-bezier(0.16, 1, 0.3, 1), opacity 0.4s ease;
+}
+.aurora-liquid-wave.wave-1 {
+  width: 320px;
+  height: 240px;
+  background: radial-gradient(circle, #007aff 0%, rgba(0, 122, 255, 0) 70%);
+  animation: auroraPulse1 4s ease-in-out infinite alternate;
+}
+.aurora-liquid-wave.wave-2 {
+  width: 280px;
+  height: 220px;
+  background: radial-gradient(circle, #af52de 0%, rgba(175, 82, 222, 0) 70%);
+  animation: auroraPulse2 3.5s ease-in-out infinite alternate;
+}
+.aurora-liquid-wave.wave-3 {
+  width: 340px;
+  height: 200px;
+  background: radial-gradient(circle, #34c759 0%, rgba(52, 199, 89, 0) 70%);
+  animation: auroraPulse3 4.5s ease-in-out infinite alternate;
+}
+@keyframes auroraPulse1 {
+  0% { transform: translate(-40px, 0) scale(0.9); }
+  100% { transform: translate(30px, 40px) scale(1.15); }
+}
+@keyframes auroraPulse2 {
+  0% { transform: translate(30px, 20px) scale(1.1); }
+  100% { transform: translate(-30px, -20px) scale(0.95); }
+}
+@keyframes auroraPulse3 {
+  0% { transform: translate(0, -20px) scale(1); }
+  100% { transform: translate(0, 50px) scale(1.2); }
+}
+
+.namedrop-modal-scrim.connected .aurora-liquid-wave {
+  transform: scale(2.4) translateY(80px);
+  opacity: 0.95;
+  filter: blur(36px);
+}
+
+.apple-modal-card.namedrop-card {
+  max-width: 420px;
+  width: 92%;
+  padding: 24px 20px 18px;
+  position: relative;
+  z-index: 2;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+}
+
+/* Two Phones Approaching Animation */
+.namedrop-phones-anim {
+  width: 140px;
+  height: 72px;
+  margin: 0 auto 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+}
+.phone-anim-device {
+  width: 38px;
+  height: 60px;
+  border-radius: 9px;
+  background: rgba(120, 120, 128, 0.18);
+  border: 1.5px solid rgba(255, 255, 255, 0.25);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  transition: all 0.3s cubic-bezier(0.16, 1, 0.3, 1);
+}
+.phone-notch {
+  width: 14px;
+  height: 3px;
+  border-radius: 2px;
+  background: rgba(255, 255, 255, 0.35);
+  margin-top: 3px;
+}
+.phone-screen-glow {
+  width: 80%;
+  height: 65%;
+  border-radius: 5px;
+  background: radial-gradient(circle, rgba(175, 82, 222, 0.4), transparent);
+  margin-top: 4px;
+}
+.phone-sender {
+  transform: translateX(12px) rotate(-12deg);
+  animation: phoneBobLeft 2.4s ease-in-out infinite alternate;
+}
+.phone-receiver {
+  transform: translateX(-12px) rotate(12deg);
+  animation: phoneBobRight 2.4s ease-in-out infinite alternate;
+}
+@keyframes phoneBobLeft {
+  0% { transform: translateX(16px) rotate(-14deg); }
+  100% { transform: translateX(4px) rotate(-6deg); }
+}
+@keyframes phoneBobRight {
+  0% { transform: translateX(-16px) rotate(14deg); }
+  100% { transform: translateX(-4px) rotate(6deg); }
+}
+.phone-anim-wave {
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  border: 2px solid #af52de;
+  opacity: 0.6;
+  position: absolute;
+  animation: proximityWave 1.6s ease-out infinite;
+}
+@keyframes proximityWave {
+  0% { transform: scale(0.4); opacity: 0.9; }
+  100% { transform: scale(2.2); opacity: 0; }
+}
+
+.namedrop-segmented {
+  display: flex;
+  width: 100%;
+  background: rgba(120, 120, 128, 0.14);
+  border-radius: 9px;
+  padding: 2px;
+  margin: 12px 0 14px;
+}
+
+.namedrop-status-box {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px 14px;
+  border-radius: 14px;
+  background: rgba(175, 82, 222, 0.08);
+  border: 1px solid rgba(175, 82, 222, 0.18);
+  margin-bottom: 12px;
+}
+.namedrop-radar-pulse {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  background: #af52de;
+  position: relative;
+  flex-shrink: 0;
+}
+.namedrop-radar-pulse::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  border: 2px solid #af52de;
+  animation: radarPing 1.5s cubic-bezier(0, 0, 0.2, 1) infinite;
+}
+@keyframes radarPing {
+  0% { transform: scale(0.6); opacity: 1; }
+  100% { transform: scale(2); opacity: 0; }
+}
+.namedrop-status-text {
+  display: flex;
+  flex-direction: column;
+  text-align: left;
+}
+.namedrop-status-text strong {
+  font-size: 13.5px;
+  color: var(--apple-label);
+}
+.namedrop-status-text span {
+  font-size: 11.5px;
+  color: var(--apple-secondary-label);
+}
+
+.namedrop-room-badge {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(120, 120, 128, 0.08);
+  border: 1px solid rgba(120, 120, 128, 0.1);
+  margin-bottom: 12px;
+  text-align: left;
+}
+.room-badge-icon {
+  font-size: 20px;
+}
+.room-badge-info {
+  display: flex;
+  flex-direction: column;
+}
+.room-badge-info strong {
+  font-size: 13.5px;
+  color: var(--apple-label);
+}
+.room-badge-info small {
+  font-size: 11px;
+  color: var(--apple-secondary-label);
+}
+
+.btn-airdrop-row {
+  width: 100%;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 14px;
+  border-radius: 12px;
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 12px;
+  background: rgba(120, 120, 128, 0.12);
+  color: var(--apple-label);
+  border: none;
+  cursor: pointer;
+  transition: all 0.16s ease;
+}
+.btn-airdrop-row:hover {
+  background: rgba(120, 120, 128, 0.22);
+}
+.namedrop-footer {
+  width: 100%;
+}
